@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import Base, engine
-from app.routes import users, agreements
+from app.routes import users, agreements, policies, documents
 from app.routes import dispute as dispute_router, alert as alert_router
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,6 +17,8 @@ app.add_middleware(
 
 app.include_router(users.router)
 app.include_router(agreements.router)
+app.include_router(policies.router)
+app.include_router(documents.router)
 app.include_router(dispute_router.router)
 app.include_router(alert_router.router)
 

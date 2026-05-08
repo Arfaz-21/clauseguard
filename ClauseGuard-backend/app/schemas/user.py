@@ -15,3 +15,8 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class GoogleLoginRequest(BaseModel):
+    name: str
+    email: EmailStr
+    picture: Optional[str] = None
