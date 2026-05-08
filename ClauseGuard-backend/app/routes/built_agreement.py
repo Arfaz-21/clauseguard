@@ -33,7 +33,7 @@ class BuilderResponse(BaseModel):
 # AI teammate calls this to save generated agreement
 @router.post("/", response_model=BuilderResponse)
 def save_built_agreement(data: BuilderCreate, db: Session = Depends(get_db)):
-    new_agreement = BuiltAgreement(**data.dict())
+    new_agreement = BuiltAgreement(**data.model_dump())
     db.add(new_agreement)
     db.commit()
     db.refresh(new_agreement)

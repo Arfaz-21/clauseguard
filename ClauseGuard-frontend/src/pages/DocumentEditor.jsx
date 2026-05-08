@@ -41,6 +41,20 @@ const DocumentEditor = () => {
     toast.success('Content copied to clipboard');
   };
 
+  const handleExportPDF = () => {
+    const element = document.getElementById('document-content');
+    const opt = {
+      margin: 1,
+      filename: `${doc.title.toLowerCase().replace(/ /g, '_')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    
+    html2pdf().from(element).set(opt).save();
+    toast.success('PDF export started');
+  };
+
   if (loading) return (
     <div className="h-[60vh] flex items-center justify-center">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
@@ -65,7 +79,7 @@ const DocumentEditor = () => {
           <button onClick={copyToClipboard} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-xl font-semibold flex items-center gap-2 hover:bg-slate-50 transition-all">
             <Copy size={18} /> Copy
           </button>
-          <button className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-slate-800 transition-all shadow-md">
+          <button onClick={handleExportPDF} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-slate-800 transition-all shadow-md">
             <Download size={18} /> Export PDF
           </button>
         </div>
@@ -74,7 +88,7 @@ const DocumentEditor = () => {
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Document Preview */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="glass-card p-10 min-h-[800px] shadow-xl relative overflow-hidden bg-white">
+          <div id="document-content" className="glass-card p-10 min-h-[800px] shadow-xl relative overflow-hidden bg-white">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-indigo-600" />
             <div className="prose prose-slate max-w-none">
               <div className="whitespace-pre-wrap font-serif text-slate-800 leading-relaxed text-lg">

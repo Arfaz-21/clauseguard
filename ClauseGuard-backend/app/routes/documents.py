@@ -54,9 +54,37 @@ def generate_legal_content(doc_type: str, data: dict):
 
     elif doc_type == "terms_and_conditions":
         content += "## 1. Agreement to Terms\n"
-        content += "These Terms and Conditions constitute a legally binding agreement made between you, whether personally or on behalf of an entity (\"you\") and {business_name} (\"we,\" \"us\" or \"our\"), concerning your access to and use of our services.\n\n"
+        content += f"These Terms and Conditions constitute a legally binding agreement made between you, whether personally or on behalf of an entity (\"you\") and {business_name} (\"we,\" \"us\" or \"our\"), concerning your access to and use of our services.\n\n"
         content += "## 2. Intellectual Property Rights\n"
         content += "Unless otherwise indicated, the Services are our proprietary property and all source code, databases, functionality, software, website designs, audio, video, text, photographs, and graphics on the Services (collectively, the \"Content\") and the trademarks, service marks, and logos contained therein (the \"Marks\") are owned or controlled by us or licensed to us.\n\n"
+
+    elif doc_type == "service_agreement":
+        content += "## 1. Services Provided\n"
+        content += f"The Service Provider agrees to perform the following services for the Client: {data.get('business_type', 'general business services')}.\n\n"
+        content += "## 2. Payment Terms\n"
+        content += f"The Client shall pay the Service Provider according to the rates and schedule agreed upon. All payments are due within {data.get('payment_cycle', '30 days')} of invoice issuance.\n\n"
+        recs.append({"type": "tip", "text": "Clearly define the 'Scope of Work' to avoid scope creep."})
+
+    elif doc_type == "freelancer_agreement":
+        content += "## 1. Independent Contractor Status\n"
+        content += "The Freelancer is an independent contractor, not an employee. Nothing in this Agreement shall be interpreted as creating a partnership or joint venture between the parties.\n\n"
+        content += "## 2. Ownership of Work Product\n"
+        content += "Upon full payment of fees, the Freelancer hereby assigns all rights, title, and interest in and to the work product to the Client.\n\n"
+        recs.append({"type": "critical", "text": "Ensure you specify if the freelancer can use the work in their portfolio."})
+
+    elif doc_type == "subscription_terms":
+        content += "## 1. Subscription Tiers\n"
+        content += "We offer various subscription tiers for our services. By subscribing, you agree to pay the recurring fees associated with your chosen tier.\n\n"
+        content += "## 2. Auto-Renewal\n"
+        content += "Subscriptions will automatically renew at the end of each billing cycle unless cancelled at least 48 hours prior to renewal.\n\n"
+        recs.append({"type": "warning", "text": "Auto-renewal terms must be conspicuous under California and EU consumer laws."})
+
+    elif doc_type == "cookie_policy":
+        content += "## 1. What are Cookies?\n"
+        content += "Cookies are small data files that are placed on your computer or mobile device when you visit a website.\n\n"
+        content += "## 2. How we use Cookies\n"
+        content += "We use cookies for various purposes, including strictly necessary cookies for site operation, and analytics cookies to understand how you use our services.\n\n"
+        recs.append({"type": "tip", "text": "Implement a 'Cookie Consent Banner' to allow users to opt-out of non-essential cookies."})
 
     content += "\n---\n*Disclaimer: This is an AI-assisted draft and should be reviewed by a qualified legal professional before official use.*"
     return title, content, recs

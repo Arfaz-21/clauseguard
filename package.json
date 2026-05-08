@@ -1,0 +1,11 @@
+{
+  "name": "clauseguard-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "cd ClauseGuard-frontend && npm run dev",
+    "dev:backend": "cd ClauseGuard-backend && source venv/bin/activate && uvicorn app.main:app --reload",
+    "dev": "npm run dev:frontend",
+    "install:all": "cd ClauseGuard-frontend && npm install && cd ../ClauseGuard-backend && pip install -r requirements.txt"
+  }
+}
