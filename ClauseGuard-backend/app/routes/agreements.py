@@ -46,7 +46,7 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                         "metadata": {"page": p["page"]}
                     })
             
-            with httpx.Client(timeout=60.0) as client:
+            with httpx.Client(timeout=120.0) as client:
                 # We'll call a new bulk audit endpoint or just send the list
                 resp = client.post(RAG_AGENT_URL, json={"pages": audit_payload})
                 if resp.status_code == 200:

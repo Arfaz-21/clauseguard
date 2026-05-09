@@ -92,9 +92,13 @@ const AnalysisPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center">
             Contract Analysis
-            {isPending ? (
+            {agreement.status === 'uploaded' ? (
               <span className="ml-3 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full flex items-center">
                 <Clock className="w-3 h-3 mr-1" /> Pending AI Audit
+              </span>
+            ) : agreement.status === 'error' ? (
+              <span className="ml-3 px-3 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-full flex items-center">
+                <AlertTriangle className="w-3 h-3 mr-1" /> Audit Failed
               </span>
             ) : (
               <span className="ml-3 px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full flex items-center">

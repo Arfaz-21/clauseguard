@@ -115,15 +115,20 @@ async def audit_endpoint(req: AuditRequest):
     """Audit contract clauses for legal compliance with location tracking."""
     try:
         if req.pages:
-            # New page-aware audit
-            results = []
-            for page in req.pages:
+            # New page-aware audit with concurrency to avoid timeouts
+            from concurrent.futures import ThreadPoolExecutor
+            
+            def audit_page(page):
                 res = audit_clause(page.text)
                 res["location"] = page.metadata
-                results.append(res)
+                return res
+
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                results = list(executor.map(audit_page, req.pages))
             
             # Summary statistics
-            risk_score = sum(r.get("risk_score", 50) for r in results) / len(results) if results else 0
+            valid_results = [r for r in results if "risk_score" in r or "verdict" in r]
+            risk_score = sum(r.get("risk_score", 50) for r in valid_results) / len(valid_results) if valid_results else 0
             return {
                 "risk_score": risk_score,
                 "results": results
