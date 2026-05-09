@@ -52,7 +52,7 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
         # 3. Fallback to basic Gemini if RAG failed
         if not rag_success:
             if api_key and api_key != "your_api_key_here":
-                model = genai.GenerativeModel('gemini-pro')
+                model = genai.GenerativeModel('gemini-flash-latest')
                 prompt = f"""
                 Analyze the following rental agreement text and provide a professional audit summary.
                 Agreement Text:

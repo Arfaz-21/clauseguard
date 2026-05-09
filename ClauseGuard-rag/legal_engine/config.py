@@ -49,7 +49,7 @@ CHUNK_OVERLAP_CHARS = CHUNK_OVERLAP * CHARS_PER_TOKEN  # ~200 characters
 DEFAULT_TOP_K = 5         # Number of chunks to retrieve per query
 
 # ─── LLM Generation ──────────────────────────────────────────────────────────
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-flash-latest"
 GENERATION_TEMPERATURE = 0.1    # Low temp = factual, deterministic answers
 MAX_OUTPUT_TOKENS = 2048        # Max response length
 
