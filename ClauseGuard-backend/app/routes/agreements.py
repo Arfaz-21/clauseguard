@@ -47,24 +47,42 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
 
         # Try RAG Agent Audit
         rag_success = False
+        audit_items = []
         try:
-            # Send chunks with page metadata
-            audit_payload = []
-            for p in pages:
-                if len(p["text"].strip()) > 100: # Only audit substantial pages
-                    audit_payload.append({
-                        "text": p["text"][:2000], 
-                        "metadata": {"page": p["page"]}
-                    })
-            
             with httpx.Client(timeout=120.0) as client:
-                # We'll call a new bulk audit endpoint or just send the list
-                resp = client.post(RAG_AGENT_URL, json={"pages": audit_payload})
-                if resp.status_code == 200:
-                    audit_result = json.dumps(resp.json())
-                    rag_success = True
+                for p in pages:
+                    if len(p["text"].strip()) < 100: continue
+                    
+                    # Update status progressively
+                    agreement.status = f"analyzing page {p['page']}/{len(pages)}"
+                    db.commit()
+
+                    resp = client.post(RAG_AGENT_URL, json={
+                        "pages": [{"text": p["text"][:2000], "metadata": {"page": p["page"]}}]
+                    })
+                    
+                    if resp.status_code == 200:
+                        page_data = resp.json()
+                        audit_items.extend(page_data.get("results", []))
+                        
+                        # Save partial results
+                        agreement.audit_result = json.dumps({
+                            "results": audit_items, 
+                            "risk_score": 0 # Final calc later
+                        })
+                        db.commit()
+                        rag_success = True
         except Exception as rag_err:
-            print(f"RAG Agent unavailable: {rag_err}")
+            print(f"Progressive RAG error: {rag_err}")
+
+        # Finalize
+        if rag_success:
+            valid_scores = [r.get("risk_score", 50) for r in audit_items]
+            final_score = sum(valid_scores) / len(valid_scores) if valid_scores else 0
+            agreement.audit_result = json.dumps({"results": audit_items, "risk_score": final_score})
+            agreement.status = "audited"
+            db.commit()
+        else:
 
         # 3. Fallback to basic Gemini if RAG failed
         if not rag_success:
@@ -73,7 +91,7 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                 prompt = f"""
                 Analyze the following rental agreement text and provide a professional audit summary.
                 Agreement Text:
-                {text[:4000]}
+                {full_text[:4000]}
                 """
                 response = model.generate_content(prompt)
                 audit_result = response.text
