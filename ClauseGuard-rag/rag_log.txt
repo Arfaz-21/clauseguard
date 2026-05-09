@@ -1,0 +1,12 @@
+INFO:     Will watch for changes in these directories: ["/Users/manishgsuvarna/Alva's Hackathon/clauseguard/ClauseGuard-rag"]
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [23387] using WatchFiles
+🚀 Starting ClauseGuard server...
+   Docs: http://localhost:8001/docs
+   Health: http://localhost:8001/api/health
+INFO:     Started server process [23389]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+INFO:     127.0.0.1:55585 - "GET /api/health HTTP/1.1" 200 OK

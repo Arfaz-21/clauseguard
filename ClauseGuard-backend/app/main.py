@@ -13,7 +13,7 @@ from app.models import user, agreement, dispute, alert, built_agreement, documen
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="LegalEase AI Backend")
+app = FastAPI(title="ClauseGuard Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,4 +32,4 @@ app.include_router(built_agreement_router.router)
 
 @app.get("/")
 def root():
-    return {"message": "LegalEase AI Backend is running ✅"}
+    return {"message": "ClauseGuard Backend is running ✅"}

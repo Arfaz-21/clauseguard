@@ -271,7 +271,7 @@ const ProcessingState = ({ currentStatus, tip }) => {
       </div>
 
       <div className="space-y-3 w-full">
-        <h2 className="text-2xl font-black text-slate-900">LegalEase AI is on the case</h2>
+        <h2 className="text-2xl font-black text-slate-900">ClauseGuard is on the case</h2>
         <p className="text-slate-500 text-sm max-w-sm mx-auto">Our AI agent is currently cross-referencing your agreement with the Model Tenancy Act 2021.</p>
       </div>
 
@@ -369,7 +369,7 @@ const AuditResultsRenderer = ({ result, onScrollToClause }) => {
                 <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
                {riskScore > 70 ? 'HIGH RISK' : riskScore > 30 ? 'MODERATE RISK' : 'SAFE DOCUMENT'}
              </div>
-             <p className="text-[10px] text-slate-400 mt-2 font-medium">Verified by LegalEase Engine</p>
+             <p className="text-[10px] text-slate-400 mt-2 font-medium">Verified by ClauseGuard Engine</p>
           </div>
         </div>
       )}

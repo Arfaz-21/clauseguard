@@ -7,7 +7,7 @@ Start the FastAPI server.
 import uvicorn
 
 if __name__ == "__main__":
-    print("🚀 Starting LegalEase AI server...")
+    print("🚀 Starting ClauseGuard server...")
     print("   Docs: http://localhost:8001/docs")
     print("   Health: http://localhost:8001/api/health")
     uvicorn.run(

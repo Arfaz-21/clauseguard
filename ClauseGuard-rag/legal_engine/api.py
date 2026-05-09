@@ -18,7 +18,7 @@ from legal_engine.dispute_triage import triage_dispute
 # ─── FastAPI App ──────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="LegalEase AI",
+    title="ClauseGuard",
     description="RAG-powered legal assistant for Indian tenancy law",
     version="1.0.0",
 )
