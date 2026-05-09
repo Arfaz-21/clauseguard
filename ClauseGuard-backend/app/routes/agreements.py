@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db, SessionLocal
 from app.models.agreement import Agreement
 from app.schemas.agreement import AgreementResponse, AuditResultUpdate
-import shutil, os, PyPDF2, httpx
+import shutil, os, PyPDF2, httpx, json
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -38,14 +38,9 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                 resp = client.post(RAG_AGENT_URL, json={"clauses": [text[:4000]]})
                 if resp.status_code == 200:
                     data = resp.json()
-                    if "results" in data:
-                        res = data["results"][0]
-                        audit_result = f"### ⚖️ LegalEase AI Audit: {res['verdict']}\n\n"
-                        audit_result += f"**Risk Level:** `{res['risk_level']}`\n\n"
-                        audit_result += f"**Explanation:** {res['explanation']}\n\n"
-                        audit_result += f"**Law Reference:** {res['law_reference']}\n\n"
-                        audit_result += f"**Suggestion:** {res['suggestion']}"
-                        rag_success = True
+                    # Store the entire RAG response as a JSON string for advanced UI rendering
+                    audit_result = json.dumps(data)
+                    rag_success = True
         except Exception as rag_err:
             print(f"RAG Agent unavailable: {rag_err}")
 
