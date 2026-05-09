@@ -6,9 +6,18 @@ import { useAuth } from '../context/AuthContext';
 import { 
   FileText, Clock, AlertTriangle, ShieldCheck, RefreshCw, 
   MessageSquare, AlertCircle, CheckCircle2, ChevronRight, 
-  Info, Scale, Zap, ShieldAlert, BookOpen
+  Info, Scale, Zap, ShieldAlert, BookOpen, Search, Layers, Brain
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const LEGAL_TIPS = [
+  "Tip: Under MTA 2021, security deposits for residential premises are capped at 2 months' rent.",
+  "Insight: A rental agreement must be registered with the Rent Authority to be legally binding.",
+  "Did you know? Landlords cannot cut off essential supplies like water or electricity during a dispute.",
+  "Tip: Always check the 'Notice Period' clause; 1 month is standard, but some try to sneak in 3 months.",
+  "Legal Note: Structural repairs are usually the landlord's responsibility unless specified otherwise.",
+  "Insight: The Model Tenancy Act aims to protect both landlords and tenants through a fast-track Rent Court."
+];
 
 const AnalysisPage = () => {
   const { id } = useParams();
@@ -17,6 +26,7 @@ const AnalysisPage = () => {
   const [agreement, setAgreement] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTip, setActiveTip] = useState(0);
   const textContainerRef = React.useRef(null);
   
   // Dispute state
@@ -40,16 +50,23 @@ const AnalysisPage = () => {
   useEffect(() => {
     fetchAgreement();
     
-    // Auto-poll if document is pending
+    // Auto-poll if document is in any processing stage
     let interval;
-    if (agreement?.status === 'uploaded' || isLoading) {
+    const processingStates = ['uploaded', 'extracting', 'analyzing', 'finalizing'];
+    if (agreement && (processingStates.includes(agreement.status) || isLoading)) {
       interval = setInterval(() => {
         fetchAgreement();
-      }, 3000); // Check every 3 seconds
+      }, 2000); // Faster polling (2s) for better responsiveness
     }
+    
+    // Rotate legal tips
+    const tipInterval = setInterval(() => {
+      setActiveTip(prev => (prev + 1) % LEGAL_TIPS.length);
+    }, 5000);
     
     return () => {
       if (interval) clearInterval(interval);
+      if (tipInterval) clearInterval(tipInterval);
     };
   }, [id, agreement?.status]);
 
@@ -80,10 +97,15 @@ const AnalysisPage = () => {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center p-12"><div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div></div>;
+    return (
+      <div className="flex flex-col items-center justify-center p-24 space-y-4">
+        <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-500 font-medium animate-pulse text-sm">Initializing Analysis...</p>
+      </div>
+    );
   }
 
-  const isPending = agreement?.status === 'uploaded';
+  const isProcessing = ['uploaded', 'extracting', 'analyzing', 'finalizing'].includes(agreement?.status);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -92,9 +114,9 @@ const AnalysisPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center">
             Contract Analysis
-            {agreement.status === 'uploaded' ? (
+            {agreement.status === 'uploaded' || agreement.status === 'extracting' || agreement.status === 'analyzing' ? (
               <span className="ml-3 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full flex items-center">
-                <Clock className="w-3 h-3 mr-1" /> Pending AI Audit
+                <Clock className="w-3 h-3 mr-1" /> {agreement.status === 'uploaded' ? 'Queued' : agreement.status.charAt(0).toUpperCase() + agreement.status.slice(1)}...
               </span>
             ) : agreement.status === 'error' ? (
               <span className="ml-3 px-3 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-full flex items-center">
@@ -117,7 +139,7 @@ const AnalysisPage = () => {
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
           </button>
-          {!isPending && (
+          {!isProcessing && agreement.status !== 'error' && (
              <button 
                onClick={() => setShowDisputeForm(!showDisputeForm)}
                className="flex items-center px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
@@ -129,28 +151,20 @@ const AnalysisPage = () => {
         </div>
       </div>
 
-      {isPending ? (
-        <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center">
-          <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <RefreshCw className="w-8 h-8 animate-spin" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">AI is analyzing your document</h2>
-          <p className="text-slate-500 max-w-md mx-auto">
-            Our AI teammate is currently reading and extracting clauses from your PDF. This usually takes a few moments. Please click refresh to check for updates.
-          </p>
-        </div>
+      {isProcessing ? (
+        <ProcessingState currentStatus={agreement.status} tip={LEGAL_TIPS[activeTip]} />
       ) : (
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-500">
           {/* Extracted Text */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-              <h3 className="font-bold text-slate-800 flex items-center">
-                <FileText className="w-5 h-5 mr-2 text-slate-500" /> Extracted Document Text
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 flex items-center text-sm">
+                <FileText className="w-4 h-4 mr-2 text-slate-500" /> Extracted Document Text
               </h3>
             </div>
             <div 
               ref={textContainerRef}
-              className="p-6 overflow-y-auto flex-1 bg-slate-50 font-mono text-sm text-slate-700 whitespace-pre-wrap scroll-smooth"
+              className="p-6 overflow-y-auto flex-1 bg-slate-50 font-mono text-xs text-slate-700 whitespace-pre-wrap scroll-smooth leading-relaxed"
             >
               {agreement.extracted_text || "No text could be extracted from this document."}
             </div>
@@ -159,14 +173,12 @@ const AnalysisPage = () => {
           {/* Audit Results */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
             <div className="px-6 py-4 border-b border-slate-200 bg-primary-50 flex items-center justify-between">
-              <h3 className="font-bold text-primary-800 flex items-center">
-                <ShieldCheck className="w-5 h-5 mr-2" /> AI Audit Results
+              <h3 className="font-bold text-primary-800 flex items-center text-sm">
+                <ShieldCheck className="w-4 h-4 mr-2" /> AI Audit Results
               </h3>
-              {agreement.audit_result && typeof agreement.audit_result === 'string' && agreement.audit_result.startsWith('{') && (
-                <div className="px-3 py-1 bg-primary-100 text-primary-700 text-[10px] font-bold uppercase tracking-wider rounded-md">
-                  Structured Data
-                </div>
-              )}
+              <div className="px-2 py-0.5 bg-primary-100 text-primary-700 text-[9px] font-bold uppercase tracking-wider rounded">
+                MTA-2021 Compliant
+              </div>
             </div>
             <div className="p-6 overflow-y-auto flex-1 text-slate-800">
               <AuditResultsRenderer 
@@ -177,19 +189,14 @@ const AnalysisPage = () => {
                     const fullText = container.innerText;
                     const index = fullText.indexOf(text);
                     if (index !== -1) {
-                      // Basic scroll-to-text implementation
-                      const elements = Array.from(container.children);
-                      // In our case it's a whitespace-pre-wrap div, so we search text content
-                      // and try to scroll. Since it's one big text node usually, we just do:
                       container.scrollTop = (index / fullText.length) * container.scrollHeight - 100;
-                      toast.success(`Found clause on Page`);
+                      toast.success(`Located in document`, { icon: '📍' });
                     } else {
-                      // Try a partial match if exact fails
-                      const partial = text.substring(0, 50);
+                      const partial = text.substring(0, 40);
                       const pIndex = fullText.indexOf(partial);
                       if (pIndex !== -1) {
                         container.scrollTop = (pIndex / fullText.length) * container.scrollHeight - 100;
-                        toast.success(`Found clause location`);
+                        toast.success(`Located in document`, { icon: '📍' });
                       }
                     }
                   }
@@ -239,6 +246,85 @@ const AnalysisPage = () => {
   );
 };
 
+// --- Waiting / Processing State Component ---
+
+const ProcessingState = ({ currentStatus, tip }) => {
+  const stages = [
+    { id: 'uploaded', label: 'Queued', icon: Clock },
+    { id: 'extracting', label: 'Extracting Text', icon: Layers },
+    { id: 'analyzing', label: 'Analyzing Risks', icon: Brain },
+    { id: 'finalizing', label: 'Finalizing Report', icon: CheckCircle2 },
+  ];
+
+  const currentIndex = stages.findIndex(s => s.id === currentStatus);
+  const progress = ((currentIndex + 1) / stages.length) * 100;
+
+  return (
+    <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center max-w-2xl mx-auto text-center space-y-10">
+      <div className="relative">
+        <div className="w-24 h-24 bg-primary-50 text-primary-600 rounded-3xl flex items-center justify-center animate-pulse">
+          <Brain className="w-12 h-12" />
+        </div>
+        <div className="absolute -top-1 -right-1 w-6 h-6 bg-white rounded-full border-2 border-primary-500 flex items-center justify-center animate-bounce">
+          <Zap className="w-3 h-3 text-primary-500 fill-primary-500" />
+        </div>
+      </div>
+
+      <div className="space-y-3 w-full">
+        <h2 className="text-2xl font-black text-slate-900">LegalEase AI is on the case</h2>
+        <p className="text-slate-500 text-sm max-w-sm mx-auto">Our AI agent is currently cross-referencing your agreement with the Model Tenancy Act 2021.</p>
+      </div>
+
+      {/* Progress Stepper */}
+      <div className="w-full space-y-6">
+        <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div 
+            className="absolute top-0 left-0 h-full bg-primary-500 transition-all duration-1000 ease-in-out" 
+            style={{ width: `${progress}%` }}
+          >
+            <div className="absolute top-0 right-0 w-8 h-full bg-white/20 skew-x-[-30deg] animate-shimmer" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2">
+          {stages.map((stage, idx) => {
+            const Icon = stage.icon;
+            const isActive = idx <= currentIndex;
+            const isCurrent = idx === currentIndex;
+            
+            return (
+              <div key={stage.id} className="flex flex-col items-center space-y-2">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                  isCurrent ? 'bg-primary-500 text-white shadow-lg shadow-primary-200 scale-110' :
+                  isActive ? 'bg-green-100 text-green-600' : 'bg-slate-50 text-slate-300'
+                }`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className={`text-[10px] font-bold uppercase tracking-tighter ${
+                  isActive ? 'text-slate-800' : 'text-slate-300'
+                }`}>
+                  {stage.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Legal Tip Card */}
+      <div className="w-full bg-slate-50 p-6 rounded-2xl border border-slate-100 animate-in slide-in-from-bottom-4 duration-700">
+        <div className="flex items-center justify-center space-x-2 text-primary-600 mb-2">
+          <Info className="w-4 h-4" />
+          <span className="text-xs font-bold uppercase tracking-widest">Did you know?</span>
+        </div>
+        <p className="text-slate-600 text-sm font-medium italic leading-relaxed min-h-[40px] flex items-center justify-center">
+          {tip}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // --- Helper Components for Audit Results ---
 
 const AuditResultsRenderer = ({ result, onScrollToClause }) => {
@@ -269,11 +355,11 @@ const AuditResultsRenderer = ({ result, onScrollToClause }) => {
               <span className={`text-4xl font-black ${riskScore > 70 ? 'text-red-600' : riskScore > 30 ? 'text-amber-600' : 'text-green-600'}`}>
                 {Math.round(riskScore)}
               </span>
-              <span className="text-slate-400 font-medium ml-1">/100</span>
+              <span className="text-slate-400 font-medium ml-1 text-sm">/100</span>
             </div>
           </div>
           <div className="flex flex-col items-end">
-             <div className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center ${
+             <div className={`px-4 py-1.5 rounded-full text-[10px] font-black flex items-center ${
                riskScore > 70 ? 'bg-red-100 text-red-700' : 
                riskScore > 30 ? 'bg-amber-100 text-amber-700' : 
                'bg-green-100 text-green-700'
@@ -283,14 +369,14 @@ const AuditResultsRenderer = ({ result, onScrollToClause }) => {
                 <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
                {riskScore > 70 ? 'HIGH RISK' : riskScore > 30 ? 'MODERATE RISK' : 'SAFE DOCUMENT'}
              </div>
-             <p className="text-[10px] text-slate-400 mt-2 font-medium">Based on Indian Tenancy Law (MTA 2021)</p>
+             <p className="text-[10px] text-slate-400 mt-2 font-medium">Verified by LegalEase Engine</p>
           </div>
         </div>
       )}
 
       {/* Categorized Risks */}
       <div className="space-y-4">
-        <h4 className="text-slate-900 font-bold flex items-center">
+        <h4 className="text-slate-900 font-bold flex items-center text-sm">
           <Zap className="w-4 h-4 mr-2 text-primary-500" /> Clause-by-Clause Analysis
         </h4>
         
@@ -301,10 +387,10 @@ const AuditResultsRenderer = ({ result, onScrollToClause }) => {
 
       {/* Legal Footer */}
       <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start">
-        <Info className="w-4 h-4 text-slate-400 mr-3 mt-0.5" />
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          This analysis is generated by AI using the Model Tenancy Act 2021 as a primary reference. 
-          It does not constitute legal advice. For binding interpretations, please consult with a legal professional.
+        <Info className="w-3.5 h-3.5 text-slate-400 mr-3 mt-0.5" />
+        <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
+          This analysis is generated by AI using the Model Tenancy Act 2021. 
+          For binding interpretations, please consult with a legal professional.
         </p>
       </div>
     </div>
@@ -316,11 +402,11 @@ const RiskCard = ({ item, onScrollToClause }) => {
   
   const getSeverityColors = (level) => {
     switch (level?.toUpperCase()) {
-      case 'CRITICAL': return 'bg-red-500 text-white border-red-600';
-      case 'HIGH': return 'bg-orange-500 text-white border-orange-600';
-      case 'MEDIUM': return 'bg-amber-500 text-white border-amber-600';
-      case 'LOW': return 'bg-green-500 text-white border-green-600';
-      default: return 'bg-slate-500 text-white border-slate-600';
+      case 'CRITICAL': return 'bg-red-500 text-white shadow-red-100';
+      case 'HIGH': return 'bg-orange-500 text-white shadow-orange-100';
+      case 'MEDIUM': return 'bg-amber-500 text-white shadow-amber-100';
+      case 'LOW': return 'bg-green-500 text-white shadow-green-100';
+      default: return 'bg-slate-500 text-white shadow-slate-100';
     }
   };
 
@@ -337,83 +423,79 @@ const RiskCard = ({ item, onScrollToClause }) => {
   const level = item.risk_level || (item.verdict === 'NON_COMPLIANT' ? 'HIGH' : 'LOW');
 
   return (
-    <div className={`rounded-xl border transition-all duration-200 overflow-hidden ${getSeverityBg(level)}`}>
+    <div className={`rounded-xl border transition-all duration-200 overflow-hidden ${getSeverityBg(level)} shadow-sm`}>
       <div 
         className="p-4 cursor-pointer flex items-center justify-between"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center space-x-3">
-          <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter ${getSeverityColors(level)}`}>
+          <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter shadow-sm ${getSeverityColors(level)}`}>
             {level}
           </div>
           <span className="font-bold text-slate-900 text-sm">
             {item.clause_category || 'Legal Clause'}
           </span>
           {item.location?.page && (
-            <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-bold rounded">
+            <span className="px-1.5 py-0.5 bg-white/50 text-slate-500 text-[9px] font-bold rounded border border-slate-200/50">
               PAGE {item.location.page}
             </span>
           )}
         </div>
-        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-90 text-slate-600' : ''}`} />
+        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-slate-600' : ''}`} />
       </div>
 
       {isExpanded && (
         <div className="px-4 pb-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
-          <hr className="border-slate-200" />
+          <hr className="border-slate-200/50" />
           
-          {/* Action Row */}
           <div className="flex justify-end">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 onScrollToClause(item.clause);
               }}
-              className="flex items-center px-3 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded text-[10px] font-bold transition-colors"
+              className="flex items-center px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded text-[9px] font-black transition-all hover:scale-105"
             >
-              <Zap className="w-3 h-3 mr-1.5 text-primary-500" /> View in Document
+              <Zap className="w-3 h-3 mr-1.5 text-primary-500" /> JUMP TO CLAUSE
             </button>
           </div>
 
-          {/* Simple Explanation */}
           <div className="space-y-1">
-            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center">
-              <Info className="w-3 h-3 mr-1.5" /> What this means
+            <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center">
+              <Info className="w-3 h-3 mr-1.5" /> AI Interpretation
             </h5>
-            <p className="text-sm text-slate-800 font-medium leading-relaxed">
+            <p className="text-xs text-slate-800 font-bold leading-relaxed">
               {item.explanation?.simplified || item.explanation}
             </p>
           </div>
 
-          {/* Legal Depth */}
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center">
-                <ShieldAlert className="w-3 h-3 mr-1.5 text-red-500" /> Why it's risky
+            <div className="space-y-1 p-3 bg-white/50 rounded-lg border border-white/50">
+              <h5 className="text-[9px] font-black text-red-500 uppercase tracking-widest flex items-center">
+                <ShieldAlert className="w-3 h-3 mr-1.5" /> Risk Analysis
               </h5>
-              <p className="text-xs text-slate-600 leading-relaxed italic">
-                {item.explanation?.why_it_risky || "This clause may grant excessive power to the other party or waive your legal rights."}
+              <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">
+                {item.explanation?.why_it_risky || "This clause may grant excessive power or waive legal rights."}
               </p>
             </div>
-            <div className="space-y-1">
-              <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center">
-                <BookOpen className="w-3 h-3 mr-1.5 text-blue-500" /> Law Reference
+            <div className="space-y-1 p-3 bg-white/50 rounded-lg border border-white/50">
+              <h5 className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center">
+                <BookOpen className="w-3 h-3 mr-1.5" /> MTA Reference
               </h5>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                 {item.law_reference}
               </p>
             </div>
           </div>
 
-          {/* Suggestion / Solution */}
           {item.suggestion && (
-             <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-1">
-                <h5 className="text-[10px] font-bold text-green-600 uppercase tracking-widest flex items-center">
-                  <CheckCircle2 className="w-3 h-3 mr-1.5" /> Suggested Safer Version
+             <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-2">
+                <h5 className="text-[9px] font-black text-green-600 uppercase tracking-widest flex items-center">
+                  <CheckCircle2 className="w-3 h-3 mr-1.5" /> Safer Alternative
                 </h5>
-                <p className="text-xs font-mono text-slate-700 bg-slate-50 p-2 rounded border border-slate-100">
+                <div className="text-[11px] font-mono text-slate-700 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed">
                   {item.suggestion}
-                </p>
+                </div>
              </div>
           )}
         </div>

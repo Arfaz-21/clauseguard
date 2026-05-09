@@ -24,7 +24,12 @@ if api_key and api_key != "your_api_key_here":
 def analyze_agreement_with_ai(agreement_id: int, file_path: str):
     db = SessionLocal()
     try:
-        # 1. Extract text page-by-page to track locations
+        # Stage 1: Extraction
+        agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
+        if agreement:
+            agreement.status = "extracting"
+            db.commit()
+
         pages = []
         full_text = ""
         with open(file_path, "rb") as f:
@@ -34,7 +39,13 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                 pages.append({"page": i + 1, "text": page_text})
                 full_text += page_text + "\n"
         
-        # 2. Try RAG Agent Audit
+        # Stage 2: Analysis
+        if agreement:
+            agreement.status = "analyzing"
+            agreement.extracted_text = full_text
+            db.commit()
+
+        # Try RAG Agent Audit
         rag_success = False
         try:
             # Send chunks with page metadata
