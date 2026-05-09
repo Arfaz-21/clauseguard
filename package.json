@@ -5,8 +5,9 @@
   "scripts": {
     "dev:frontend": "cd ClauseGuard-frontend && npm run dev",
     "dev:backend": "cd ClauseGuard-backend && source venv/bin/activate && uvicorn app.main:app --reload",
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
-    "install:all": "cd ClauseGuard-frontend && npm install && cd ../ClauseGuard-backend && pip install -r requirements.txt"
+    "dev:rag": "cd ClauseGuard-rag && source venv/bin/activate && python run.py",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:rag\"",
+    "install:all": "cd ClauseGuard-frontend && npm install && cd ../ClauseGuard-backend && pip install -r requirements.txt && cd ../ClauseGuard-rag && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

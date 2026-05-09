@@ -34,7 +34,19 @@ const AnalysisPage = () => {
 
   useEffect(() => {
     fetchAgreement();
-  }, [id]);
+    
+    // Auto-poll if document is pending
+    let interval;
+    if (agreement?.status === 'uploaded' || isLoading) {
+      interval = setInterval(() => {
+        fetchAgreement();
+      }, 3000); // Check every 3 seconds
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [id, agreement?.status]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);

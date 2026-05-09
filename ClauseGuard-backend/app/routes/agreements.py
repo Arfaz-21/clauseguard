@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db, SessionLocal
 from app.models.agreement import Agreement
 from app.schemas.agreement import AgreementResponse, AuditResultUpdate
-import shutil, os, PyPDF2
+import shutil, os, PyPDF2, httpx
 import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
+
+RAG_AGENT_URL = "http://localhost:8001/api/audit"
 
 router = APIRouter(prefix="/agreements", tags=["Agreements"])
 
@@ -29,26 +31,37 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
             for page in pdf.pages:
                 text += page.extract_text() + "\n"
         
-        # 2. Call Gemini for Audit
-        if api_key and api_key != "your_api_key_here":
-            model = genai.GenerativeModel('gemini-pro')
-            prompt = f"""
-            Analyze the following rental agreement text and provide a professional audit summary.
-            Highlight:
-            - Rent details and payment terms.
-            - High-risk or unfair clauses (like excessive fees, pet restrictions, maintenance obligations).
-            - Missing legal protections.
-            - A final 'Risk Score' from 1-10.
-            
-            Use professional markdown formatting with icons.
-            
-            Agreement Text:
-            {text[:4000]} # Limit to avoid token issues
-            """
-            response = model.generate_content(prompt)
-            audit_result = response.text
-        else:
-            audit_result = "### ⚠️ Gemini API Key Not Configured\n\nPlease add a valid `GEMINI_API_KEY` to your backend `.env` file to see real AI analysis. For now, here is the extracted text below."
+        # 2. Try RAG Agent Audit First
+        rag_success = False
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                resp = client.post(RAG_AGENT_URL, json={"clauses": [text[:4000]]})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if "results" in data:
+                        res = data["results"][0]
+                        audit_result = f"### ⚖️ LegalEase AI Audit: {res['verdict']}\n\n"
+                        audit_result += f"**Risk Level:** `{res['risk_level']}`\n\n"
+                        audit_result += f"**Explanation:** {res['explanation']}\n\n"
+                        audit_result += f"**Law Reference:** {res['law_reference']}\n\n"
+                        audit_result += f"**Suggestion:** {res['suggestion']}"
+                        rag_success = True
+        except Exception as rag_err:
+            print(f"RAG Agent unavailable: {rag_err}")
+
+        # 3. Fallback to basic Gemini if RAG failed
+        if not rag_success:
+            if api_key and api_key != "your_api_key_here":
+                model = genai.GenerativeModel('gemini-pro')
+                prompt = f"""
+                Analyze the following rental agreement text and provide a professional audit summary.
+                Agreement Text:
+                {text[:4000]}
+                """
+                response = model.generate_content(prompt)
+                audit_result = response.text
+            else:
+                audit_result = "### ⚠️ AI Service Not Configured\n\nPlease add a valid `GEMINI_API_KEY` to your `.env` and ensure the RAG agent is running."
 
         # 3. Update Database
         agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
