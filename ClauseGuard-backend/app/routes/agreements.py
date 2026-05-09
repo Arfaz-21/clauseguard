@@ -21,6 +21,7 @@ api_key = os.getenv("GEMINI_API_KEY")
 if api_key and api_key != "your_api_key_here":
     genai.configure(api_key=api_key)
 
+# Background task to process PDF and call RAG AI
 def analyze_agreement_with_ai(agreement_id: int, file_path: str):
     db = SessionLocal()
     try:
@@ -54,6 +55,7 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                     if len(p["text"].strip()) < 100: continue
                     
                     # Update status progressively
+                    agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
                     agreement.status = f"analyzing page {p['page']}/{len(pages)}"
                     db.commit()
 
@@ -68,24 +70,25 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                         # Save partial results
                         agreement.audit_result = json.dumps({
                             "results": audit_items, 
-                            "risk_score": 0 # Final calc later
+                            "risk_score": 0 
                         })
                         db.commit()
                         rag_success = True
         except Exception as rag_err:
             print(f"Progressive RAG error: {rag_err}")
 
-        # Finalize
+        # Finalize or Fallback
         if rag_success:
             valid_scores = [r.get("risk_score", 50) for r in audit_items]
             final_score = sum(valid_scores) / len(valid_scores) if valid_scores else 0
+            
+            agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
             agreement.audit_result = json.dumps({"results": audit_items, "risk_score": final_score})
             agreement.status = "audited"
             db.commit()
         else:
-
-        # 3. Fallback to basic Gemini if RAG failed
-        if not rag_success:
+            # Fallback to basic Gemini
+            audit_result = ""
             if api_key and api_key != "your_api_key_here":
                 model = genai.GenerativeModel('gemini-flash-latest')
                 prompt = f"""
@@ -97,14 +100,13 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                 audit_result = response.text
             else:
                 audit_result = "### ⚠️ AI Service Not Configured\n\nPlease add a valid `GEMINI_API_KEY` to your `.env` and ensure the RAG agent is running."
+            
+            agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
+            if agreement:
+                agreement.audit_result = audit_result
+                agreement.status = "audited"
+                db.commit()
 
-        # 3. Update Database
-        agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
-        if agreement:
-            agreement.extracted_text = full_text
-            agreement.audit_result = audit_result
-            agreement.status = "audited"
-            db.commit()
     except Exception as e:
         print(f"Error in AI analysis: {e}")
         agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
@@ -128,23 +130,9 @@ def upload_agreement(tenant_id: int, background_tasks: BackgroundTasks, file: Up
     
     # Start AI analysis in the background
     background_tasks.add_task(analyze_agreement_with_ai, agreement.id, file_path)
-    
     return agreement
 
-# AI teammates call this to save audit results
-@router.patch("/{agreement_id}/audit", response_model=AgreementResponse)
-def save_audit_result(agreement_id: int, data: AuditResultUpdate, db: Session = Depends(get_db)):
-    agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
-    if not agreement:
-        raise HTTPException(status_code=404, detail="Agreement not found")
-    agreement.audit_result = data.audit_result
-    agreement.extracted_text = data.extracted_text
-    agreement.status = "audited"
-    db.commit()
-    db.refresh(agreement)
-    return agreement
-
-# Get a single agreement
+# Get agreement details
 @router.get("/{agreement_id}", response_model=AgreementResponse)
 def get_agreement(agreement_id: int, db: Session = Depends(get_db)):
     agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
@@ -153,7 +141,6 @@ def get_agreement(agreement_id: int, db: Session = Depends(get_db)):
     return agreement
 
 # Get all agreements for a tenant
-@router.get("/tenant/{tenant_id}")
+@router.get("/tenant/{tenant_id}", response_model=list[AgreementResponse])
 def get_tenant_agreements(tenant_id: int, db: Session = Depends(get_db)):
-    agreements = db.query(Agreement).filter(Agreement.tenant_id == tenant_id).all()
-    return agreements
+    return db.query(Agreement).filter(Agreement.tenant_id == tenant_id).all()
