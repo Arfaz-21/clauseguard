@@ -18,5 +18,9 @@ export const agreementService = {
   getTenantAgreements: async (tenantId) => {
     const response = await api.get(`/agreements/tenant/${tenantId}`);
     return response.data;
+  },
+  reAudit: async (agreementId) => {
+    const response = await api.post(`/agreements/${agreementId}/re-audit`);
+    return response.data;
   }
 };

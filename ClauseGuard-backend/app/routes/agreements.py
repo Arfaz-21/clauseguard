@@ -132,6 +132,20 @@ def upload_agreement(tenant_id: int, background_tasks: BackgroundTasks, file: Up
     background_tasks.add_task(analyze_agreement_with_ai, agreement.id, file_path)
     return agreement
 
+# Re-trigger audit for an existing agreement
+@router.post("/{agreement_id}/re-audit", response_model=AgreementResponse)
+def re_audit_agreement(agreement_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    
+    agreement.status = "uploaded"
+    agreement.audit_result = None
+    db.commit()
+    
+    background_tasks.add_task(analyze_agreement_with_ai, agreement.id, agreement.file_path)
+    return agreement
+
 # Get agreement details
 @router.get("/{agreement_id}", response_model=AgreementResponse)
 def get_agreement(agreement_id: int, db: Session = Depends(get_db)):

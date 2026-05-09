@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   FileText, Clock, AlertTriangle, ShieldCheck, RefreshCw, 
   MessageSquare, AlertCircle, CheckCircle2, ChevronRight, 
-  Info, Scale, Zap, ShieldAlert, BookOpen, Search, Layers, Brain
+  Info, Scale, Zap, ShieldAlert, BookOpen, Search, Layers, Brain, Play
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -26,6 +26,7 @@ const AnalysisPage = () => {
   const [agreement, setAgreement] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isStartingAudit, setIsStartingAudit] = useState(false);
   const [activeTip, setActiveTip] = useState(0);
   const textContainerRef = React.useRef(null);
   
@@ -54,9 +55,11 @@ const AnalysisPage = () => {
     let interval;
     const processingStates = ['uploaded', 'extracting', 'analyzing', 'finalizing'];
     if (agreement && (processingStates.includes(agreement.status) || isLoading)) {
+      // If it's uploaded but not moving, we don't want to poll too fast indefinitely
+      // but for the sake of UX we poll
       interval = setInterval(() => {
         fetchAgreement();
-      }, 2000); // Faster polling (2s) for better responsiveness
+      }, 2000);
     }
     
     // Rotate legal tips
@@ -73,6 +76,19 @@ const AnalysisPage = () => {
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchAgreement();
+  };
+
+  const handleStartAudit = async () => {
+    setIsStartingAudit(true);
+    try {
+      const updated = await agreementService.reAudit(id);
+      setAgreement(updated);
+      toast.success('Audit started successfully');
+    } catch (error) {
+      toast.error('Failed to start audit');
+    } finally {
+      setIsStartingAudit(false);
+    }
   };
 
   const handleDisputeSubmit = async (e) => {
@@ -105,7 +121,8 @@ const AnalysisPage = () => {
     );
   }
 
-  const isProcessing = ['uploaded', 'extracting', 'analyzing', 'finalizing'].includes(agreement?.status);
+  const isProcessing = ['extracting', 'analyzing', 'finalizing'].includes(agreement?.status);
+  const isPendingStart = agreement?.status === 'uploaded';
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -114,9 +131,13 @@ const AnalysisPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center">
             Contract Analysis
-            {agreement.status === 'uploaded' || agreement.status === 'extracting' || agreement.status === 'analyzing' ? (
+            {isPendingStart ? (
+              <span className="ml-3 px-3 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full flex items-center">
+                <Clock className="w-3 h-3 mr-1" /> Pending Analysis
+              </span>
+            ) : isProcessing ? (
               <span className="ml-3 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full flex items-center">
-                <Clock className="w-3 h-3 mr-1" /> {agreement.status === 'uploaded' ? 'Queued' : agreement.status.charAt(0).toUpperCase() + agreement.status.slice(1)}...
+                <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> {agreement.status.charAt(0).toUpperCase() + agreement.status.slice(1)}...
               </span>
             ) : agreement.status === 'error' ? (
               <span className="ml-3 px-3 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-full flex items-center">
@@ -131,15 +152,27 @@ const AnalysisPage = () => {
           <p className="text-slate-500 text-sm mt-1">Agreement #{agreement.id} • {agreement.file_path}</p>
         </div>
         <div className="mt-4 md:mt-0 flex space-x-3">
-          <button 
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          {!isProcessing && agreement.status !== 'error' && (
+          {isPendingStart || agreement.status === 'error' ? (
+            <button 
+              onClick={handleStartAudit}
+              disabled={isStartingAudit}
+              className="flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-all shadow-md shadow-primary-200"
+            >
+              <Play className={`w-4 h-4 mr-2 ${isStartingAudit ? 'animate-pulse' : ''}`} />
+              {isStartingAudit ? 'Starting...' : 'Run AI Audit'}
+            </button>
+          ) : (
+            <button 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          )}
+          
+          {!isProcessing && !isPendingStart && agreement.status !== 'error' && (
              <button 
                onClick={() => setShowDisputeForm(!showDisputeForm)}
                className="flex items-center px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
@@ -153,6 +186,26 @@ const AnalysisPage = () => {
 
       {isProcessing ? (
         <ProcessingState currentStatus={agreement.status} tip={LEGAL_TIPS[activeTip]} />
+      ) : isPendingStart ? (
+        <div className="bg-white p-12 rounded-3xl shadow-sm border border-slate-200 text-center space-y-6 max-w-2xl mx-auto">
+          <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto">
+            <Zap className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-900">Analysis Ready to Start</h2>
+            <p className="text-slate-500 text-sm max-w-sm mx-auto">Click the button above to begin the AI-powered legal audit. We'll cross-reference your agreement with Indian Tenancy Law.</p>
+          </div>
+          <div className="pt-4">
+             <button 
+               onClick={handleStartAudit}
+               disabled={isStartingAudit}
+               className="inline-flex items-center px-8 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition-all shadow-xl shadow-primary-200 hover:-translate-y-1"
+             >
+               <Brain className="w-5 h-5 mr-3" />
+               Launch AI Auditor
+             </button>
+          </div>
+        </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-500">
           {/* Extracted Text */}
@@ -183,6 +236,8 @@ const AnalysisPage = () => {
             <div className="p-6 overflow-y-auto flex-1 text-slate-800">
               <AuditResultsRenderer 
                 result={agreement.audit_result} 
+                status={agreement.status}
+                onStartAudit={handleStartAudit}
                 onScrollToClause={(text) => {
                   if (textContainerRef.current) {
                     const container = textContainerRef.current;
@@ -207,7 +262,7 @@ const AnalysisPage = () => {
         </div>
       )}
 
-      {/* Dispute Form Modal/Inline */}
+      {/* Dispute Form */}
       {showDisputeForm && (
         <div className="bg-red-50 p-6 rounded-2xl border border-red-200 mt-6 animate-in slide-in-from-top-4">
           <h3 className="text-lg font-bold text-red-800 mb-2 flex items-center">
@@ -216,9 +271,9 @@ const AnalysisPage = () => {
           <p className="text-red-700 text-sm mb-4">Did the AI miss something, or do you disagree with a clause? Describe the issue below.</p>
           <form onSubmit={handleDisputeSubmit}>
             <textarea
-              className="w-full p-3 border border-red-300 rounded-lg bg-white mb-4 outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full p-3 border border-red-300 rounded-lg bg-white mb-4 outline-none focus:ring-2 focus:ring-red-500 text-sm"
               rows="4"
-              placeholder="E.g., Clause 4 states I must paint the house before leaving, which wasn't discussed..."
+              placeholder="E.g., Clause 4 states I must paint the house before leaving..."
               value={disputeDesc}
               onChange={(e) => setDisputeDesc(e.target.value)}
               required
@@ -227,14 +282,14 @@ const AnalysisPage = () => {
               <button 
                 type="button" 
                 onClick={() => setShowDisputeForm(false)}
-                className="px-4 py-2 text-red-700 hover:bg-red-100 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 text-red-700 hover:bg-red-100 rounded-lg font-medium transition-colors text-sm"
               >
                 Cancel
               </button>
               <button 
                 type="submit" 
                 disabled={isSubmittingDispute}
-                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium transition-colors disabled:opacity-70"
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium transition-colors disabled:opacity-70 text-sm"
               >
                 {isSubmittingDispute ? 'Submitting...' : 'Submit Dispute'}
               </button>
@@ -246,17 +301,20 @@ const AnalysisPage = () => {
   );
 };
 
-// --- Waiting / Processing State Component ---
+// --- Processing State Component ---
 
 const ProcessingState = ({ currentStatus, tip }) => {
   const stages = [
-    { id: 'uploaded', label: 'Queued', icon: Clock },
     { id: 'extracting', label: 'Extracting Text', icon: Layers },
     { id: 'analyzing', label: 'Analyzing Risks', icon: Brain },
     { id: 'finalizing', label: 'Finalizing Report', icon: CheckCircle2 },
   ];
 
-  const currentIndex = stages.findIndex(s => s.id === currentStatus);
+  // Map sub-stages back to main stages for the UI
+  let displayStatus = currentStatus;
+  if (currentStatus.startsWith('analyzing page')) displayStatus = 'analyzing';
+
+  const currentIndex = stages.findIndex(s => s.id === displayStatus);
   const progress = ((currentIndex + 1) / stages.length) * 100;
 
   return (
@@ -272,10 +330,9 @@ const ProcessingState = ({ currentStatus, tip }) => {
 
       <div className="space-y-3 w-full">
         <h2 className="text-2xl font-black text-slate-900">ClauseGuard is on the case</h2>
-        <p className="text-slate-500 text-sm max-w-sm mx-auto">Our AI agent is currently cross-referencing your agreement with the Model Tenancy Act 2021.</p>
+        <p className="text-slate-600 text-sm font-bold animate-pulse">{currentStatus.replace('page', 'Page').replace('/', ' of ')}...</p>
       </div>
 
-      {/* Progress Stepper */}
       <div className="w-full space-y-6">
         <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
           <div 
@@ -286,7 +343,7 @@ const ProcessingState = ({ currentStatus, tip }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {stages.map((stage, idx) => {
             const Icon = stage.icon;
             const isActive = idx <= currentIndex;
@@ -300,7 +357,7 @@ const ProcessingState = ({ currentStatus, tip }) => {
                 }`}>
                   <Icon className="w-5 h-5" />
                 </div>
-                <span className={`text-[10px] font-bold uppercase tracking-tighter ${
+                <span className={`text-[9px] font-black uppercase tracking-tighter ${
                   isActive ? 'text-slate-800' : 'text-slate-300'
                 }`}>
                   {stage.label}
@@ -311,11 +368,10 @@ const ProcessingState = ({ currentStatus, tip }) => {
         </div>
       </div>
 
-      {/* Legal Tip Card */}
       <div className="w-full bg-slate-50 p-6 rounded-2xl border border-slate-100 animate-in slide-in-from-bottom-4 duration-700">
         <div className="flex items-center justify-center space-x-2 text-primary-600 mb-2">
           <Info className="w-4 h-4" />
-          <span className="text-xs font-bold uppercase tracking-widest">Did you know?</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">Did you know?</span>
         </div>
         <p className="text-slate-600 text-sm font-medium italic leading-relaxed min-h-[40px] flex items-center justify-center">
           {tip}
@@ -325,17 +381,48 @@ const ProcessingState = ({ currentStatus, tip }) => {
   );
 };
 
-// --- Helper Components for Audit Results ---
+// --- Results Renderer ---
 
-const AuditResultsRenderer = ({ result, onScrollToClause }) => {
-  if (!result) return <div className="text-slate-400 italic">No audit results provided by AI.</div>;
+const AuditResultsRenderer = ({ result, status, onStartAudit, onScrollToClause }) => {
+  if (!result || (typeof result === 'object' && (!result.results || result.results.length === 0))) {
+    if (status === 'error') {
+       return (
+         <div className="flex flex-col items-center justify-center h-full space-y-4 text-center p-8">
+           <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center">
+             <AlertTriangle className="w-8 h-8" />
+           </div>
+           <div className="space-y-1">
+             <h4 className="font-bold text-slate-900">Audit Generation Failed</h4>
+             <p className="text-xs text-slate-500">Something went wrong while communicating with the AI agent. Please try again.</p>
+           </div>
+           <button 
+             onClick={onStartAudit}
+             className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold shadow-md shadow-red-100"
+           >
+             Retry Analysis
+           </button>
+         </div>
+       );
+    }
+    return (
+      <div className="flex flex-col items-center justify-center h-full space-y-4 text-center p-8 opacity-60">
+        <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center animate-pulse">
+          <Brain className="w-8 h-8" />
+        </div>
+        <div className="space-y-1">
+          <h4 className="font-bold text-slate-900">Waiting for Results...</h4>
+          <p className="text-xs text-slate-500 italic">No audit results available yet. Analysis may be in queue or starting.</p>
+        </div>
+      </div>
+    );
+  }
 
   let data;
   try {
     data = typeof result === 'string' ? JSON.parse(result) : result;
   } catch (e) {
     return (
-      <div className="whitespace-pre-wrap prose prose-sm max-w-none text-slate-700">
+      <div className="whitespace-pre-wrap prose prose-sm max-w-none text-slate-700 font-medium">
         {result}
       </div>
     );
@@ -346,8 +433,7 @@ const AuditResultsRenderer = ({ result, onScrollToClause }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Overall Score Card */}
-      {riskScore !== undefined && (
+      {riskScore !== undefined && riskScore > 0 && (
         <div className="bg-gradient-to-br from-slate-50 to-white p-6 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
           <div>
             <h4 className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Overall Risk Score</h4>
@@ -374,7 +460,6 @@ const AuditResultsRenderer = ({ result, onScrollToClause }) => {
         </div>
       )}
 
-      {/* Categorized Risks */}
       <div className="space-y-4">
         <h4 className="text-slate-900 font-bold flex items-center text-sm">
           <Zap className="w-4 h-4 mr-2 text-primary-500" /> Clause-by-Clause Analysis
@@ -383,9 +468,15 @@ const AuditResultsRenderer = ({ result, onScrollToClause }) => {
         {items.map((item, idx) => (
           <RiskCard key={idx} item={item} onScrollToClause={onScrollToClause} />
         ))}
+        
+        {status.startsWith('analyzing page') && (
+           <div className="flex items-center justify-center p-4 space-x-2 text-slate-400 italic text-xs border-2 border-dashed border-slate-100 rounded-xl">
+             <RefreshCw className="w-3 h-3 animate-spin" />
+             <span>More clauses coming soon...</span>
+           </div>
+        )}
       </div>
 
-      {/* Legal Footer */}
       <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start">
         <Info className="w-3.5 h-3.5 text-slate-400 mr-3 mt-0.5" />
         <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
