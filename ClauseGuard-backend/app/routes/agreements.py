@@ -24,22 +24,33 @@ if api_key and api_key != "your_api_key_here":
 def analyze_agreement_with_ai(agreement_id: int, file_path: str):
     db = SessionLocal()
     try:
-        # 1. Extract text from PDF
-        text = ""
+        # 1. Extract text page-by-page to track locations
+        pages = []
+        full_text = ""
         with open(file_path, "rb") as f:
             pdf = PyPDF2.PdfReader(f)
-            for page in pdf.pages:
-                text += page.extract_text() + "\n"
+            for i, page in enumerate(pdf.pages):
+                page_text = page.extract_text() or ""
+                pages.append({"page": i + 1, "text": page_text})
+                full_text += page_text + "\n"
         
-        # 2. Try RAG Agent Audit First
+        # 2. Try RAG Agent Audit
         rag_success = False
         try:
+            # Send chunks with page metadata
+            audit_payload = []
+            for p in pages:
+                if len(p["text"].strip()) > 100: # Only audit substantial pages
+                    audit_payload.append({
+                        "text": p["text"][:2000], 
+                        "metadata": {"page": p["page"]}
+                    })
+            
             with httpx.Client(timeout=60.0) as client:
-                resp = client.post(RAG_AGENT_URL, json={"clauses": [text[:4000]]})
+                # We'll call a new bulk audit endpoint or just send the list
+                resp = client.post(RAG_AGENT_URL, json={"pages": audit_payload})
                 if resp.status_code == 200:
-                    data = resp.json()
-                    # Store the entire RAG response as a JSON string for advanced UI rendering
-                    audit_result = json.dumps(data)
+                    audit_result = json.dumps(resp.json())
                     rag_success = True
         except Exception as rag_err:
             print(f"RAG Agent unavailable: {rag_err}")
@@ -61,7 +72,7 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
         # 3. Update Database
         agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
         if agreement:
-            agreement.extracted_text = text
+            agreement.extracted_text = full_text
             agreement.audit_result = audit_result
             agreement.status = "audited"
             db.commit()

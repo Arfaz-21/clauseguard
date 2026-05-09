@@ -17,6 +17,7 @@ const AnalysisPage = () => {
   const [agreement, setAgreement] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const textContainerRef = React.useRef(null);
   
   // Dispute state
   const [showDisputeForm, setShowDisputeForm] = useState(false);
@@ -143,7 +144,10 @@ const AnalysisPage = () => {
                 <FileText className="w-5 h-5 mr-2 text-slate-500" /> Extracted Document Text
               </h3>
             </div>
-            <div className="p-6 overflow-y-auto flex-1 bg-slate-50 font-mono text-sm text-slate-700 whitespace-pre-wrap">
+            <div 
+              ref={textContainerRef}
+              className="p-6 overflow-y-auto flex-1 bg-slate-50 font-mono text-sm text-slate-700 whitespace-pre-wrap scroll-smooth"
+            >
               {agreement.extracted_text || "No text could be extracted from this document."}
             </div>
           </div>
@@ -161,7 +165,32 @@ const AnalysisPage = () => {
               )}
             </div>
             <div className="p-6 overflow-y-auto flex-1 text-slate-800">
-              <AuditResultsRenderer result={agreement.audit_result} />
+              <AuditResultsRenderer 
+                result={agreement.audit_result} 
+                onScrollToClause={(text) => {
+                  if (textContainerRef.current) {
+                    const container = textContainerRef.current;
+                    const fullText = container.innerText;
+                    const index = fullText.indexOf(text);
+                    if (index !== -1) {
+                      // Basic scroll-to-text implementation
+                      const elements = Array.from(container.children);
+                      // In our case it's a whitespace-pre-wrap div, so we search text content
+                      // and try to scroll. Since it's one big text node usually, we just do:
+                      container.scrollTop = (index / fullText.length) * container.scrollHeight - 100;
+                      toast.success(`Found clause on Page`);
+                    } else {
+                      // Try a partial match if exact fails
+                      const partial = text.substring(0, 50);
+                      const pIndex = fullText.indexOf(partial);
+                      if (pIndex !== -1) {
+                        container.scrollTop = (pIndex / fullText.length) * container.scrollHeight - 100;
+                        toast.success(`Found clause location`);
+                      }
+                    }
+                  }
+                }}
+              />
             </div>
           </div>
         </div>
@@ -208,15 +237,13 @@ const AnalysisPage = () => {
 
 // --- Helper Components for Audit Results ---
 
-const AuditResultsRenderer = ({ result }) => {
+const AuditResultsRenderer = ({ result, onScrollToClause }) => {
   if (!result) return <div className="text-slate-400 italic">No audit results provided by AI.</div>;
 
   let data;
   try {
-    // Attempt to parse if it's a JSON string
     data = typeof result === 'string' ? JSON.parse(result) : result;
   } catch (e) {
-    // Fallback to raw text rendering if not JSON
     return (
       <div className="whitespace-pre-wrap prose prose-sm max-w-none text-slate-700">
         {result}
@@ -224,7 +251,6 @@ const AuditResultsRenderer = ({ result }) => {
     );
   }
 
-  // Handle the single result or array of results
   const items = data.results || [data];
   const riskScore = data.risk_score || (items[0]?.risk_score);
 
@@ -265,7 +291,7 @@ const AuditResultsRenderer = ({ result }) => {
         </h4>
         
         {items.map((item, idx) => (
-          <RiskCard key={idx} item={item} />
+          <RiskCard key={idx} item={item} onScrollToClause={onScrollToClause} />
         ))}
       </div>
 
@@ -281,7 +307,7 @@ const AuditResultsRenderer = ({ result }) => {
   );
 };
 
-const RiskCard = ({ item }) => {
+const RiskCard = ({ item, onScrollToClause }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const getSeverityColors = (level) => {
@@ -319,9 +345,11 @@ const RiskCard = ({ item }) => {
           <span className="font-bold text-slate-900 text-sm">
             {item.clause_category || 'Legal Clause'}
           </span>
-          <span className="text-slate-500 text-xs truncate max-w-[200px]">
-             • {item.verdict?.replace('_', ' ')}
-          </span>
+          {item.location?.page && (
+            <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-bold rounded">
+              PAGE {item.location.page}
+            </span>
+          )}
         </div>
         <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-90 text-slate-600' : ''}`} />
       </div>
@@ -330,10 +358,23 @@ const RiskCard = ({ item }) => {
         <div className="px-4 pb-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
           <hr className="border-slate-200" />
           
+          {/* Action Row */}
+          <div className="flex justify-end">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onScrollToClause(item.clause);
+              }}
+              className="flex items-center px-3 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded text-[10px] font-bold transition-colors"
+            >
+              <Zap className="w-3 h-3 mr-1.5 text-primary-500" /> View in Document
+            </button>
+          </div>
+
           {/* Simple Explanation */}
           <div className="space-y-1">
             <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center">
-              <Zap className="w-3 h-3 mr-1.5" /> What this means
+              <Info className="w-3 h-3 mr-1.5" /> What this means
             </h5>
             <p className="text-sm text-slate-800 font-medium leading-relaxed">
               {item.explanation?.simplified || item.explanation}

@@ -38,8 +38,13 @@ class QueryRequest(BaseModel):
     question: str = Field(..., description="Legal question to answer")
     top_k: int = Field(default=5, description="Number of passages to retrieve")
 
+class PageContent(BaseModel):
+    text: str
+    metadata: dict
+
 class AuditRequest(BaseModel):
-    clauses: list[str] = Field(..., description="List of contract clauses to audit")
+    clauses: list[str] = Field(default=[], description="List of contract clauses to audit")
+    pages: list[PageContent] = Field(default=[], description="List of pages with metadata")
 
 class DisputeRequest(BaseModel):
     landlord_statement: str = Field(..., description="Landlord's account")
@@ -107,8 +112,23 @@ async def query_endpoint(req: QueryRequest):
 
 @app.post("/api/audit")
 async def audit_endpoint(req: AuditRequest):
-    """Audit contract clauses for legal compliance."""
+    """Audit contract clauses for legal compliance with location tracking."""
     try:
+        if req.pages:
+            # New page-aware audit
+            results = []
+            for page in req.pages:
+                res = audit_clause(page.text)
+                res["location"] = page.metadata
+                results.append(res)
+            
+            # Summary statistics
+            risk_score = sum(r.get("risk_score", 50) for r in results) / len(results) if results else 0
+            return {
+                "risk_score": risk_score,
+                "results": results
+            }
+        
         if len(req.clauses) == 1:
             result = audit_clause(req.clauses[0])
             return {"results": [result], "total_clauses": 1}
