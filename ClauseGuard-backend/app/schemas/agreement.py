@@ -7,6 +7,7 @@ class AgreementResponse(BaseModel):
     file_path: Optional[str]
     audit_result: Optional[str]
     status: str
+    extracted_text: Optional[str] = None
 
     class Config:
         from_attributes = True
