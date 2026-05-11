@@ -1,13 +1,9 @@
-"""
-LegalEase AI — Retrieval Engine
-================================
-Semantic search over the ChromaDB vector store.
-
-Given a query, finds the most relevant law passages using
-the same embedding model used during ingestion.
-"""
+import os
+os.environ['ANONYMIZED_TELEMETRY'] = 'False'
 
 from sentence_transformers import SentenceTransformer
+import chromadb
+from chromadb.config import Settings
 
 from legal_engine.config import (
     COLLECTION_NAME,
@@ -18,8 +14,28 @@ from legal_engine.config import (
 from legal_engine.ingest_laws import get_db
 
 
+# ─── Persistent DB Connection ────────────────────────────────────────────────
+
+_client = None
+
+def _get_client() -> chromadb.PersistentClient:
+    """Safe retrieval of the ChromaDB client with telemetry hardening."""
+    global _client
+    if _client is None:
+        try:
+            _client = chromadb.PersistentClient(
+                path=CHROMA_DB_PATH,
+                settings=Settings(anonymized_telemetry=False)
+            )
+        except Exception as e:
+            print(f"⚠️  ChromaDB Init Warning (Retrying...): {e}")
+            # Fallback/Retry if needed
+            _client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    return _client
+
+
 # ─── Module-level model cache ────────────────────────────────────────────────
-_model: SentenceTransformer | None = None
+_model = None
 
 
 def _get_model() -> SentenceTransformer:

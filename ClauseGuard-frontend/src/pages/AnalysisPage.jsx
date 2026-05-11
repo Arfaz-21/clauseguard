@@ -6,9 +6,159 @@ import { useAuth } from '../context/AuthContext';
 import { 
   FileText, Clock, AlertTriangle, ShieldCheck, RefreshCw, 
   MessageSquare, AlertCircle, CheckCircle2, ChevronRight, 
-  Info, Scale, Zap, ShieldAlert, BookOpen, Search, Layers, Brain, Play
+  Info, Scale, Zap, ShieldAlert, BookOpen, Search, Layers, Brain, Play,
+  Lock, AlertOctagon, CreditCard, Key, Calendar, MapPin, 
+  Briefcase, Ban, EyeOff, FileQuestion, Lightbulb, Hourglass,
+  Send, X, Bot, User, Sparkles, FileDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const RAG_URL = import.meta.env.VITE_RAG_URL || 'http://localhost:8001';
+
+// --- Chat Interface Component ---
+
+const ChatInterface = ({ documentText }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: 'bot', content: 'Hello! I am your ClauseGuard Legal Assistant. Ask me anything about this contract.' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = React.useRef(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (isOpen) scrollToBottom();
+  }, [messages, isOpen]);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const userMsg = input;
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setIsTyping(true);
+
+    try {
+      const response = await fetch(`${RAG_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: userMsg,
+          document_text: documentText
+        })
+      });
+
+      const data = await response.json();
+      
+      let botContent = data.answer || "I'm sorry, I couldn't analyze that part of the contract.";
+      if (data.action_item) {
+        botContent += `\n\n**💡 Action Item:** ${data.action_item}`;
+      }
+
+      setMessages(prev => [...prev, { role: 'bot', content: botContent, meta: data }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'bot', content: "Error: I'm having trouble connecting to the legal engine." }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Floating Toggle Button */}
+      <button 
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-8 right-8 w-16 h-16 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all z-40 group"
+      >
+        <MessageSquare className="w-7 h-7" />
+        <div className="absolute -top-12 right-0 bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-xl border border-slate-700">
+          ASK THE LAWYER
+        </div>
+      </button>
+
+      {/* Chat Window */}
+      {isOpen && (
+        <div className="fixed bottom-8 right-8 w-[400px] h-[600px] bg-white rounded-3xl shadow-2xl z-50 flex flex-col overflow-hidden border border-slate-100 animate-in slide-in-from-bottom-8 duration-300">
+          {/* Header */}
+          <div className="bg-slate-900 p-5 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
+                <Bot className="text-white w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-sm">Legal Assistant</h3>
+                <div className="flex items-center text-green-400 text-[10px] font-bold">
+                  <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2 animate-pulse" />
+                  ONLINE • RAG ENABLED
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                  msg.role === 'user' 
+                    ? 'bg-primary-600 text-white rounded-tr-none' 
+                    : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
+                }`}>
+                  {msg.role === 'bot' ? (
+                    <div className="space-y-3">
+                      <div className="whitespace-pre-wrap">
+                        {msg.content.split('**').map((part, idx) => idx % 2 === 1 ? <strong key={idx} className="text-primary-600 font-bold">{part}</strong> : part)}
+                      </div>
+                      {msg.meta?.legal_reference && (
+                        <div className="pt-2 mt-2 border-t border-slate-100 text-[10px] text-slate-400 font-bold flex items-center">
+                          <Scale className="w-3 h-3 mr-1.5 text-primary-400" /> {msg.meta.legal_reference}
+                        </div>
+                      )}
+                    </div>
+                  ) : msg.content}
+                </div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 flex space-x-1">
+                  <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" />
+                  <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]" />
+                  <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <form onSubmit={handleSend} className="p-4 bg-white border-t border-slate-100 flex items-center space-x-3">
+            <input 
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask about pet policy, deposit..."
+              className="flex-1 bg-slate-100 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary-500 transition-all outline-none"
+            />
+            <button 
+              disabled={!input.trim() || isTyping}
+              className="w-11 h-11 bg-primary-600 text-white rounded-xl flex items-center justify-center hover:bg-primary-700 transition-all disabled:opacity-50 shadow-lg shadow-primary-200"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </form>
+        </div>
+      )}
+    </>
+  );
+};
 
 const LEGAL_TIPS = [
   "Tip: Under MTA 2021, security deposits for residential premises are capped at 2 months' rent.",
@@ -28,6 +178,7 @@ const AnalysisPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStartingAudit, setIsStartingAudit] = useState(false);
   const [activeTip, setActiveTip] = useState(0);
+  const [highlightedText, setHighlightedText] = useState('');
   const textContainerRef = React.useRef(null);
   
   // Dispute state
@@ -54,9 +205,10 @@ const AnalysisPage = () => {
     // Auto-poll if document is in any processing stage
     let interval;
     const processingStates = ['uploaded', 'extracting', 'analyzing', 'finalizing'];
-    if (agreement && (processingStates.includes(agreement.status) || isLoading)) {
-      // If it's uploaded but not moving, we don't want to poll too fast indefinitely
-      // but for the sake of UX we poll
+    const isProcessingStatus = agreement ? processingStates.some(state => agreement.status.startsWith(state)) : false;
+    
+    if (isProcessingStatus || isLoading) {
+      // Poll every 2 seconds until processing completes
       interval = setInterval(() => {
         fetchAgreement();
       }, 2000);
@@ -111,6 +263,7 @@ const AnalysisPage = () => {
       setIsSubmittingDispute(false);
     }
   };
+
 
   if (isLoading) {
     return (
@@ -173,13 +326,16 @@ const AnalysisPage = () => {
           )}
           
           {!isProcessing && !isPendingStart && agreement.status !== 'error' && (
-             <button 
-               onClick={() => setShowDisputeForm(!showDisputeForm)}
-               className="flex items-center px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
-             >
-               <MessageSquare className="w-4 h-4 mr-2" />
-               Raise Dispute
-             </button>
+             <div className="flex items-center space-x-2">
+
+               <button 
+                 onClick={() => setShowDisputeForm(!showDisputeForm)}
+                 className="flex items-center px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-medium transition-colors"
+               >
+                 <MessageSquare className="w-4 h-4 mr-2" />
+                 Raise Dispute
+               </button>
+             </div>
           )}
         </div>
       </div>
@@ -207,7 +363,7 @@ const AnalysisPage = () => {
           </div>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-500">
+        <div id="audit-report-content" className="grid md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-500">
           {/* Extracted Text */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
@@ -219,7 +375,13 @@ const AnalysisPage = () => {
               ref={textContainerRef}
               className="p-6 overflow-y-auto flex-1 bg-slate-50 font-mono text-xs text-slate-700 whitespace-pre-wrap scroll-smooth leading-relaxed"
             >
-              {agreement.extracted_text || "No text could be extracted from this document."}
+              {agreement.extracted_text ? (
+                <HighlightedText 
+                  text={agreement.extracted_text} 
+                  highlight={highlightedText} 
+                  containerRef={textContainerRef} 
+                />
+              ) : "No text could be extracted from this document."}
             </div>
           </div>
 
@@ -239,22 +401,8 @@ const AnalysisPage = () => {
                 status={agreement.status}
                 onStartAudit={handleStartAudit}
                 onScrollToClause={(text) => {
-                  if (textContainerRef.current) {
-                    const container = textContainerRef.current;
-                    const fullText = container.innerText;
-                    const index = fullText.indexOf(text);
-                    if (index !== -1) {
-                      container.scrollTop = (index / fullText.length) * container.scrollHeight - 100;
-                      toast.success(`Located in document`, { icon: '📍' });
-                    } else {
-                      const partial = text.substring(0, 40);
-                      const pIndex = fullText.indexOf(partial);
-                      if (pIndex !== -1) {
-                        container.scrollTop = (pIndex / fullText.length) * container.scrollHeight - 100;
-                        toast.success(`Located in document`, { icon: '📍' });
-                      }
-                    }
-                  }
+                  setHighlightedText(text);
+                  toast.success(`Located in document`, { icon: '📍' });
                 }}
               />
             </div>
@@ -296,6 +444,11 @@ const AnalysisPage = () => {
             </div>
           </form>
         </div>
+      )}
+
+      {/* Interactive Lawyer Chat */}
+      {agreement && agreement.status !== 'uploaded' && (
+        <ChatInterface documentText={agreement.extracted_text} />
       )}
     </div>
   );
@@ -429,10 +582,61 @@ const AuditResultsRenderer = ({ result, status, onStartAudit, onScrollToClause }
   }
 
   const items = data.results || [data];
+  const summary = data.overall_summary;
   const riskScore = data.risk_score || (items[0]?.risk_score);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {/* New Agreement Summary Section */}
+      {summary && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Shield className="w-5 h-5 text-primary-400" />
+              <h3 className="text-white font-bold text-sm tracking-tight">Agreement Summary</h3>
+            </div>
+            <div className="px-3 py-1 bg-white/10 rounded-full">
+              <span className="text-primary-400 text-[10px] font-black uppercase">{summary.contract_type || 'Legal Audit'}</span>
+            </div>
+          </div>
+          <div className="p-6 space-y-6">
+            <div>
+              <h4 className="text-slate-900 font-bold text-xs uppercase tracking-wider mb-2 flex items-center">
+                <Brain className="w-3.5 h-3.5 mr-2 text-primary-500" /> Executive Overview
+              </h4>
+              <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                {summary.executive_summary}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <h4 className="text-red-600 font-bold text-[10px] uppercase tracking-widest flex items-center">
+                  <AlertTriangle className="w-3.5 h-3.5 mr-2" /> Key Red Flags
+                </h4>
+                <ul className="space-y-2">
+                  {summary.key_red_flags?.map((flag, i) => (
+                    <li key={i} className="flex items-start text-xs text-slate-700 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 mr-2 shrink-0" />
+                      {flag}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-amber-600 font-bold text-[10px] uppercase tracking-widest flex items-center">
+                  <CreditCard className="w-3.5 h-3.5 mr-2" /> Financial Concerns
+                </h4>
+                <p className="text-xs text-slate-700 font-medium leading-relaxed bg-amber-50 p-3 rounded-xl border border-amber-100">
+                  {summary.financial_concerns}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {riskScore !== undefined && riskScore > 0 && (
         <div className="bg-gradient-to-br from-slate-50 to-white p-6 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
           <div>
@@ -511,76 +715,128 @@ const RiskCard = ({ item, onScrollToClause }) => {
     }
   };
 
+  const getCategoryIcon = (category) => {
+    const cat = category?.toLowerCase() || '';
+    if (cat.includes('intellectual property') || cat.includes('ownership')) return Lightbulb;
+    if (cat.includes('employment') || cat.includes('freelance')) return Briefcase;
+    if (cat.includes('termination')) return AlertOctagon;
+    if (cat.includes('confidentiality')) return EyeOff;
+    if (cat.includes('non-compete')) return Ban;
+    if (cat.includes('liability') || cat.includes('breach')) return ShieldAlert;
+    if (cat.includes('arbitration') || cat.includes('jurisdiction')) return Scale;
+    if (cat.includes('payment') || cat.includes('refund') || cat.includes('penalty')) return CreditCard;
+    if (cat.includes('notice')) return Calendar;
+    if (cat.includes('data privacy')) return Lock;
+    if (cat.includes('renewal')) return RefreshCw;
+    if (cat.includes('indemnification')) return ShieldCheck;
+    if (cat.includes('charge') || cat.includes('fee')) return Search;
+    if (cat.includes('duration') || cat.includes('term')) return Hourglass;
+    return FileQuestion;
+  };
+
   const level = item.risk_level || (item.verdict === 'NON_COMPLIANT' ? 'HIGH' : 'LOW');
+  const CategoryIcon = getCategoryIcon(item.clause_category);
+
+  // Helper to render **bold text** with red background highlighting
+  const renderFormattedText = (text) => {
+    if (!text) return null;
+    return text.split(/\*\*(.*?)\*\*/g).map((part, i) => 
+      i % 2 === 1 ? (
+        <strong key={i} className="text-red-700 bg-red-100 px-1 rounded mx-0.5 whitespace-nowrap border border-red-200">
+          {part}
+        </strong>
+      ) : part
+    );
+  };
 
   return (
     <div className={`rounded-xl border transition-all duration-200 overflow-hidden ${getSeverityBg(level)} shadow-sm`}>
       <div 
-        className="p-4 cursor-pointer flex items-center justify-between"
+        className="p-4 cursor-pointer flex flex-col space-y-3"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center space-x-3">
-          <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter shadow-sm ${getSeverityColors(level)}`}>
-            {level}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${getSeverityColors(level)}`}>
+              <CategoryIcon className="w-4 h-4" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-slate-900 text-sm">
+                {item.clause_category || 'Legal Clause'}
+              </span>
+              <div className="flex items-center mt-1 space-x-2">
+                <div className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${getSeverityColors(level)}`}>
+                  {level} RISK
+                </div>
+                {item.location?.page && (
+                  <span className="px-1.5 py-0.5 bg-white/50 text-slate-500 text-[8px] font-bold rounded border border-slate-200/50">
+                    PAGE {item.location.page}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <span className="font-bold text-slate-900 text-sm">
-            {item.clause_category || 'Legal Clause'}
-          </span>
-          {item.location?.page && (
-            <span className="px-1.5 py-0.5 bg-white/50 text-slate-500 text-[9px] font-bold rounded border border-slate-200/50">
-              PAGE {item.location.page}
-            </span>
-          )}
+          <ChevronRight className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-slate-600' : ''}`} />
         </div>
-        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-slate-600' : ''}`} />
+        
+        {/* Short Summary inside the collapsed header */}
+        {item.short_summary && (
+          <p className="text-xs text-slate-600 font-medium pl-11">
+            {item.short_summary}
+          </p>
+        )}
       </div>
 
       {isExpanded && (
         <div className="px-4 pb-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
-          <hr className="border-slate-200/50" />
+          <hr className="border-slate-200/50 ml-11" />
           
           <div className="flex justify-end">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                onScrollToClause(item.clause);
+                onScrollToClause(item.clause || item.explanation?.simplified); // fallback to text if clause isn't stored
               }}
-              className="flex items-center px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded text-[9px] font-black transition-all hover:scale-105"
+              className="flex items-center px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded text-[9px] font-black transition-all hover:scale-105 shadow-sm"
             >
               <Zap className="w-3 h-3 mr-1.5 text-primary-500" /> JUMP TO CLAUSE
             </button>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 pl-11">
             <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center">
               <Info className="w-3 h-3 mr-1.5" /> AI Interpretation
             </h5>
-            <p className="text-xs text-slate-800 font-bold leading-relaxed">
-              {item.explanation?.simplified || item.explanation}
+            <p className="text-xs text-slate-800 leading-relaxed font-medium">
+              {renderFormattedText(item.explanation?.simplified || item.explanation)}
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-1 p-3 bg-white/50 rounded-lg border border-white/50">
-              <h5 className="text-[9px] font-black text-red-500 uppercase tracking-widest flex items-center">
-                <ShieldAlert className="w-3 h-3 mr-1.5" /> Risk Analysis
+          <div className="grid md:grid-cols-2 gap-4 pl-11">
+            <div className="space-y-1 p-3 bg-red-50 rounded-lg border border-red-100">
+              <h5 className="text-[9px] font-black text-red-600 uppercase tracking-widest flex items-center">
+                <ShieldAlert className="w-3 h-3 mr-1.5" /> Real-World Consequence
               </h5>
-              <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">
-                {item.explanation?.why_it_risky || "This clause may grant excessive power or waive legal rights."}
+              <p className="text-[11px] text-red-900 leading-relaxed font-bold">
+                {item.explanation?.why_it_risky || "This clause creates a significant legal or financial vulnerability for you."}
               </p>
             </div>
-            <div className="space-y-1 p-3 bg-white/50 rounded-lg border border-white/50">
+            <div className="space-y-1 p-3 bg-white/60 rounded-lg border border-white">
               <h5 className="text-[9px] font-black text-blue-500 uppercase tracking-widest flex items-center">
-                <BookOpen className="w-3 h-3 mr-1.5" /> MTA Reference
+                <BookOpen className="w-3 h-3 mr-1.5" /> Law Reference
               </h5>
               <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                {item.law_reference}
+                {item.law_reference || "General Principles of Law"}
               </p>
             </div>
           </div>
 
+          <div className="pl-11">
+             <NegotiationSuggestion clause={item.clause || item.explanation?.simplified} />
+          </div>
+
           {item.suggestion && (
-             <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-2">
+             <div className="p-3 bg-white rounded-lg border border-green-200 shadow-sm space-y-2 ml-11">
                 <h5 className="text-[9px] font-black text-green-600 uppercase tracking-widest flex items-center">
                   <CheckCircle2 className="w-3 h-3 mr-1.5" /> Safer Alternative
                 </h5>
@@ -592,6 +848,137 @@ const RiskCard = ({ item, onScrollToClause }) => {
         </div>
       )}
     </div>
+  );
+};
+
+// --- Negotiation AI Component ---
+
+const NegotiationSuggestion = ({ clause }) => {
+  const [suggestion, setSuggestion] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchSuggestion = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${RAG_URL}/api/rephrase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clause_text: clause })
+      });
+      const data = await response.json();
+      setSuggestion(data);
+    } catch (error) {
+      toast.error('Failed to generate negotiation advice');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!suggestion) {
+    return (
+      <button 
+        onClick={fetchSuggestion}
+        disabled={isLoading}
+        className="w-full flex items-center justify-center space-x-2 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[9px] font-black uppercase tracking-wider border border-indigo-100 transition-all group"
+      >
+        <Sparkles className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : 'group-hover:rotate-12'}`} />
+        <span>{isLoading ? 'Consulting Negotiation AI...' : 'Suggest Fair Alternative'}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-indigo-100 p-4 shadow-sm space-y-3 animate-in zoom-in-95 duration-300">
+      <div className="flex items-center space-x-2 text-indigo-600">
+        <Scale className="w-4 h-4" />
+        <span className="text-[10px] font-black uppercase tracking-widest">Balanced Suggestion</span>
+      </div>
+      <div className="p-3 bg-slate-50 rounded-lg text-[11px] text-slate-800 font-medium border border-slate-100 select-all cursor-copy hover:bg-slate-100 transition-colors" title="Click to copy">
+        {suggestion.suggested_clause}
+      </div>
+      <p className="text-[10px] text-slate-500 italic leading-relaxed">
+        <strong>Note:</strong> {suggestion.improvement_notes}
+      </p>
+      <button 
+        onClick={() => {
+          navigator.clipboard.writeText(suggestion.suggested_clause);
+          toast.success('Clause copied to clipboard!');
+        }}
+        className="text-[9px] font-bold text-indigo-600 hover:underline"
+      >
+        Copy to clipboard
+      </button>
+    </div>
+  );
+};
+
+const HighlightedText = ({ text, highlight, containerRef }) => {
+  const [matchInfo, setMatchInfo] = useState(null);
+
+  useEffect(() => {
+    if (!highlight || !text) {
+      setMatchInfo(null);
+      return;
+    }
+
+    // 1. Try exact match first
+    let index = text.indexOf(highlight);
+    let length = highlight.length;
+
+    // 2. Try whitespace-agnostic match (robust against PDF formatting artifacts)
+    if (index === -1) {
+      try {
+        const escaped = highlight
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // escape special chars
+          .replace(/\s+/g, '\\s+'); // allow any whitespace variation
+        const regex = new RegExp(escaped, 'i'); // case-insensitive
+        const match = regex.exec(text);
+        if (match) {
+          index = match.index;
+          length = match[0].length;
+        }
+      } catch (e) {
+        console.error("Regex matching failed", e);
+      }
+    }
+
+    // 3. Last resort: partial start-of-sentence match
+    if (index === -1 && highlight.length > 20) {
+      const partial = highlight.substring(0, 30);
+      index = text.indexOf(partial);
+      length = Math.min(highlight.length, text.length - index);
+    }
+
+    if (index !== -1) {
+      setMatchInfo({ index, length });
+      
+      // Auto-scroll with pinpoint precision
+      setTimeout(() => {
+        const mark = containerRef.current?.querySelector('mark');
+        if (mark) {
+          mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    } else {
+      setMatchInfo(null);
+    }
+  }, [highlight, text]);
+
+  if (!matchInfo || !text) return <>{text}</>;
+
+  const { index, length } = matchInfo;
+  const before = text.substring(0, index);
+  const match = text.substring(index, index + length);
+  const after = text.substring(index + length);
+
+  return (
+    <>
+      {before}
+      <mark className="bg-amber-100/80 text-slate-900 rounded-sm px-1 py-0.5 border-b-2 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-in fade-in zoom-in-95 duration-500 ring-1 ring-amber-200/50">
+        {match}
+      </mark>
+      {after}
+    </>
   );
 };
 

@@ -87,19 +87,94 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
             agreement.status = "audited"
             db.commit()
         else:
-            # Fallback to basic Gemini
-            audit_result = ""
+            print("RAG failed or returned no results. Falling back to Gemini generative model...")
+            # Fallback to basic Gemini using new SDK
             if api_key and api_key != "your_api_key_here":
-                model = genai.GenerativeModel('gemini-flash-latest')
-                prompt = f"""
-                Analyze the following rental agreement text and provide a professional audit summary.
-                Agreement Text:
-                {full_text[:4000]}
-                """
-                response = model.generate_content(prompt)
-                audit_result = response.text
+                try:
+                    from google import genai
+                    from google.genai import types
+                    client = genai.Client(api_key=api_key)
+                    prompt = f"""
+                    Analyze the following agreement text and provide a professional, structured audit summary.
+                    You MUST respond with VALID JSON exactly matching this structure, and do NOT wrap it in markdown block quotes.
+                    ## Your Objective
+                    Act as a "Risk Filter." If a clause is standard, fair, and reasonable, DO NOT audit it. Only flag clauses that are one-sided, unfair, restrictive, or create dangerous liability for the user.
+
+                    ## Classification Taxonomy
+                    - **Liability**, **Indemnification**, **Termination**, **Notice Period**, **Payment Terms**, **Late Penalty**, **Data Privacy**, **Arbitration**, **Jurisdiction**, **Auto Renewal**, **Intellectual Property**, **Non-Compete**.
+
+                    Respond in valid JSON:
+                    {{
+                        "overall_summary": {{
+                            "contract_type": "e.g., Residential Lease, SaaS Agreement",
+                            "executive_summary": "A 2-3 sentence overview of the document's fairness.",
+                            "key_red_flags": ["Bullet point 1", "Bullet point 2"],
+                            "financial_concerns": "Summary of costs, deposits, or penalties."
+                        }},
+                        "results": [
+                            {{
+                                "clause_category": "[From Taxonomy Above]",
+                                "short_summary": "Professional title (e.g. 'Unfair Liability Cap')",
+                                "risk_level": "LOW|MEDIUM|HIGH|CRITICAL",
+                                "clause": "VERBATIM sentence from text.",
+                                "explanation": {{
+                                    "simplified": "WHAT it does and WHY it is risky. Wrap keywords in **bold**.",
+                                    "why_it_risky": "REAL-WORLD CONSEQUENCE (e.g., 'You could be held liable for unlimited damages')."
+                                }},
+                                "suggestion": "A fair, legally-balanced alternative clause."
+                            }}
+                        ]
+                    }}
+
+                    Agreement Text:
+                    {full_text[:8000]}
+                    """
+                    
+                    response = client.models.generate_content(
+                        model='gemini-1.5-flash-8b',
+                        contents=prompt,
+                    )
+                    raw_text = response.text.strip()
+                    if raw_text.startswith("```json"):
+                        raw_text = raw_text[7:-3].strip()
+                    elif raw_text.startswith("```"):
+                        raw_text = raw_text[3:-3].strip()
+                        
+                    try:
+                        parsed_json = json.loads(raw_text)
+                        audit_result = json.dumps(parsed_json)
+                    except json.JSONDecodeError as e:
+                        print(f"Fallback Gemini returned invalid JSON: {e}")
+                        audit_result = json.dumps({
+                            "results": [
+                                {
+                                    "clause_category": "General Document Analysis",
+                                    "risk_level": "MEDIUM",
+                                    "explanation": {
+                                        "simplified": "The AI provided a response, but it was not structured properly. Here is the raw text:",
+                                        "why_it_risky": raw_text[:500]
+                                    },
+                                    "suggestion": "Please review the document manually."
+                                }
+                            ]
+                        })
+                except Exception as api_err:
+                    print(f"Fallback Gemini API error: {api_err}")
+                    audit_result = json.dumps({
+                        "results": [
+                            {
+                                "clause_category": "System Error",
+                                "risk_level": "CRITICAL",
+                                "explanation": {
+                                    "simplified": "Something went wrong while communicating with the AI agent.",
+                                    "why_it_risky": str(api_err)
+                                },
+                                "suggestion": "Please try uploading again or contact support."
+                            }
+                        ]
+                    })
             else:
-                audit_result = "### ⚠️ AI Service Not Configured\n\nPlease add a valid `GEMINI_API_KEY` to your `.env` and ensure the RAG agent is running."
+                audit_result = json.dumps({"results": [{"clause_category": "API Key Missing", "risk_level": "HIGH", "explanation": {"simplified": "AI Service Not Configured", "why_it_risky": "Missing GEMINI_API_KEY"}, "suggestion": "Add GEMINI_API_KEY to .env"}]})
             
             agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
             if agreement:
@@ -108,7 +183,7 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                 db.commit()
 
     except Exception as e:
-        print(f"Error in AI analysis: {e}")
+        print(f"CRITICAL Error in AI analysis: {e}")
         agreement = db.query(Agreement).filter(Agreement.id == agreement_id).first()
         if agreement:
             agreement.status = "error"
@@ -119,9 +194,23 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
 # Upload a rental agreement PDF
 @router.post("/upload/{tenant_id}", response_model=AgreementResponse)
 def upload_agreement(tenant_id: int, background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename.lower().endswith('.pdf') and file.content_type != 'application/pdf':
+        raise HTTPException(status_code=400, detail="Invalid file format. Only PDF files are allowed.")
+    
+    # Check file size (approximate) - e.g., max 10MB
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    if file_size > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+
     file_path = f"{UPLOAD_DIR}/{tenant_id}_{file.filename}"
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        print(f"Error saving file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save file on the server: {str(e)}")
     
     agreement = Agreement(tenant_id=tenant_id, file_path=file_path, status="uploaded")
     db.add(agreement)

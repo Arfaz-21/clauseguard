@@ -49,12 +49,27 @@ const UploadPage = () => {
     
     setIsUploading(true);
     try {
+      console.log('Initiating upload for file:', file.name, 'Size:', file.size);
       const result = await agreementService.uploadAgreement(user.id, file);
+      console.log('Upload successful! Response:', result);
       toast.success('Agreement uploaded successfully!');
       navigate(`/analysis/${result.id}`);
     } catch (error) {
-      toast.error('Failed to upload agreement. Please try again.');
-      console.error(error);
+      console.error('Upload Error Details:', error);
+      
+      let errorMsg = 'Please try again.';
+      if (error.response && error.response.data && error.response.data.detail) {
+        // Display specific backend error message
+        errorMsg = typeof error.response.data.detail === 'string' 
+          ? error.response.data.detail 
+          : JSON.stringify(error.response.data.detail);
+      } else if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+        errorMsg = 'Cannot connect to the server. Please ensure the backend is running.';
+      } else {
+        errorMsg = error.message;
+      }
+      
+      toast.error(`Upload failed: ${errorMsg}`);
     } finally {
       setIsUploading(false);
     }

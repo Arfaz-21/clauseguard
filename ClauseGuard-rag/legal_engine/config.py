@@ -10,6 +10,9 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Force-disable ChromaDB telemetry before any imports
+os.environ['ANONYMIZED_TELEMETRY'] = 'False'
+
 # ─── Paths ────────────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent        # c:\clauseguard
 ENGINE_DIR = Path(__file__).resolve().parent              # c:\clauseguard\legal_engine
@@ -49,7 +52,7 @@ CHUNK_OVERLAP_CHARS = CHUNK_OVERLAP * CHARS_PER_TOKEN  # ~200 characters
 DEFAULT_TOP_K = 5         # Number of chunks to retrieve per query
 
 # ─── LLM Generation ──────────────────────────────────────────────────────────
-GEMINI_MODEL = "gemini-flash-latest"
+GEMINI_MODEL = "gemini-1.5-flash-8b"
 GENERATION_TEMPERATURE = 0.1    # Low temp = factual, deterministic answers
 MAX_OUTPUT_TOKENS = 2048        # Max response length
 

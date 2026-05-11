@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  # ─── Frontend (React + Vite) ────────────────────────
+  frontend:
+    build: ./ClauseGuard-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+      - rag
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_RAG_URL=http://localhost:8001
+
+  # ─── Backend (FastAPI + SQLite) ─────────────────────
+  backend:
+    build: ./ClauseGuard-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./clauseguard.db
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+    volumes:
+      - backend-data:/app/uploads
+      - backend-db:/app
+
+  # ─── RAG Engine (FastAPI + ChromaDB) ────────────────
+  rag:
+    build: ./ClauseGuard-rag
+    ports:
+      - "8001:8001"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ANONYMIZED_TELEMETRY=False
+      - POSTHOG_DISABLED=true
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8000
+    volumes:
+      - rag-data:/app/legal_engine/legal_db
+
+volumes:
+  backend-data:
+  backend-db:
+  rag-data:

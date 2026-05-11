@@ -1,13 +1,18 @@
 {
-  "name": "clauseguard-monorepo",
+  "name": "clauseguard",
   "version": "1.0.0",
+  "description": "AI-powered legal contract analysis platform",
   "private": true,
   "scripts": {
+    "dev": "./start-dev.sh",
     "dev:frontend": "cd ClauseGuard-frontend && npm run dev",
-    "dev:backend": "cd ClauseGuard-backend && source venv/bin/activate && uvicorn app.main:app --reload",
+    "dev:backend": "cd ClauseGuard-backend && source venv/bin/activate && uvicorn app.main:app --reload --port 8000",
     "dev:rag": "cd ClauseGuard-rag && source venv/bin/activate && python run.py",
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:rag\"",
-    "install:all": "cd ClauseGuard-frontend && npm install && cd ../ClauseGuard-backend && pip install -r requirements.txt && cd ../ClauseGuard-rag && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+    "install:frontend": "cd ClauseGuard-frontend && npm install",
+    "install:backend": "cd ClauseGuard-backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "install:rag": "cd ClauseGuard-rag && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

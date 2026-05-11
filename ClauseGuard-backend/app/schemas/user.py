@@ -17,6 +17,7 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 class GoogleLoginRequest(BaseModel):
-    name: str
-    email: EmailStr
+    token: str
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
     picture: Optional[str] = None

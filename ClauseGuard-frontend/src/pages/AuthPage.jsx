@@ -29,6 +29,7 @@ const AuthPage = () => {
       setIsLoading(true);
       const decoded = jwtDecode(credentialResponse.credential);
       const googleData = {
+        token: credentialResponse.credential, // Send raw token to backend
         name: decoded.name,
         email: decoded.email,
         picture: decoded.picture

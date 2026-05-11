@@ -1,10 +1,29 @@
+# Node
 node_modules/
+dist/
+build/
+.npm
+.eslintcache
+
+# Python
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database & Storage
 *.db
+*.sqlite3
+uploads/
+legal_db/
+
+# Environment & OS
 .env
 .DS_Store
-dist/
-.vite/
-venv/
-uploads/
+Thumbs.db
+.vscode/
+.idea/
+*.log

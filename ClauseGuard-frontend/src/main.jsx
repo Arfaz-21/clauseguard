@@ -7,6 +7,10 @@ import './index.css'
 
 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-client-id';
 
+if (clientId === 'dummy-client-id') {
+  console.warn('⚠️ Google Client ID is not configured. Google Login will fail with invalid_client.');
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <GoogleOAuthProvider clientId={clientId}>

@@ -1,21 +1,11 @@
-"""
-LegalEase AI — Ingestion Pipeline (v2)
-=======================================
-Smart ingestion of legal PDFs into ChromaDB.
-
-Improvements over v1:
-- Uses section-aware chunker instead of page-level splitting
-- Deduplicates on re-run (deletes old docs from same source)
-- Batch embedding for speed
-- Rich metadata-based IDs
-- Progress logging with timing
-- Supports ingesting all PDFs in the data/ directory
-"""
+import os
+os.environ['ANONYMIZED_TELEMETRY'] = 'False'
 
 import time
 from pathlib import Path
 
 import chromadb
+from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 
 from legal_engine.config import (
@@ -27,14 +17,23 @@ from legal_engine.config import (
 from legal_engine.chunker import chunk_legal_pdf
 
 
+# ─── Singleton Database Connection ────────────────────────────────────────────
+_client = None
+
 def get_db():
-    """Get or create the ChromaDB collection."""
-    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-    collection = client.get_or_create_collection(
+    """Get or create the ChromaDB collection with safe singleton pattern."""
+    global _client
+    if _client is None:
+        _client = chromadb.PersistentClient(
+            path=CHROMA_DB_PATH,
+            settings=Settings(anonymized_telemetry=False)
+        )
+    
+    collection = _client.get_or_create_collection(
         name=COLLECTION_NAME,
         metadata={"description": "Indian tenancy law embeddings"},
     )
-    return client, collection
+    return _client, collection
 
 
 def _delete_source_docs(collection, source_name: str):
