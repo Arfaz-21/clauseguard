@@ -22,7 +22,6 @@ ClauseGuard is a production-grade AI legal technology platform that audits renta
 
 - **AI Contract Audit** — Upload a PDF and get clause-by-clause risk analysis
 - **Legal RAG** — Answers grounded in actual Indian tenancy law
-- **Interactive Lawyer** — Chat with your contract using AI
 - **Negotiation AI** — Get fair alternative clauses for risky terms
 - **Dispute Triage** — AI-mediated landlord-tenant dispute resolution
 - **PDF Export** — Download professional audit reports
