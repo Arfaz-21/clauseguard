@@ -166,10 +166,10 @@ def analyze_agreement_with_ai(agreement_id: int, file_path: str):
                                 "clause_category": "System Error",
                                 "risk_level": "CRITICAL",
                                 "explanation": {
-                                    "simplified": "Something went wrong while communicating with the AI agent.",
-                                    "why_it_risky": str(api_err)
+                                    "simplified": "API credits have been exhausted cant perform Analysis Contact the admin ,Gmail : manishprojects0@gmail.com",
+                                    "why_it_risky": "The AI service is temporarily unavailable due to credit exhaustion."
                                 },
-                                "suggestion": "Please try uploading again or contact support."
+                                "suggestion": "Please contact the admin via the email provided above."
                             }
                         ]
                     })

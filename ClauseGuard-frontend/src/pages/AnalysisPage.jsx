@@ -225,6 +225,41 @@ const AnalysisPage = () => {
     };
   }, [id, agreement?.status]);
 
+  // Show popup toast if API credits are exhausted
+  useEffect(() => {
+    if (agreement && agreement.audit_result) {
+      try {
+        const parsed = typeof agreement.audit_result === 'string' ? JSON.parse(agreement.audit_result) : agreement.audit_result;
+        const items = parsed.results || [];
+        const quotaError = items.find(item => item.explanation?.simplified?.includes("API credits have been exhausted"));
+        if (quotaError) {
+          toast.error("API credits have been exhausted cant perform Analysis Contact the admin ,Gmail : manishprojects0@gmail.com", {
+            duration: 10000,
+            id: 'quota-error',
+            style: {
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 9999,
+              maxWidth: '500px',
+              padding: '24px',
+              borderRadius: '16px',
+              background: '#FFFFFF',
+              color: '#EF4444',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              border: '2px solid #EF4444',
+            }
+          });
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+  }, [agreement]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchAgreement();
@@ -546,7 +581,7 @@ const AuditResultsRenderer = ({ result, status, onStartAudit, onScrollToClause }
            </div>
            <div className="space-y-1">
              <h4 className="font-bold text-slate-900">Audit Generation Failed</h4>
-             <p className="text-xs text-slate-500">Something went wrong while communicating with the AI agent. Please try again.</p>
+             <p className="text-xs text-slate-500">AI analysis is temporarily unavailable because the API quota has been exhausted, or the service timed out. Please try again later.</p>
            </div>
            <button 
              onClick={onStartAudit}
@@ -584,6 +619,22 @@ const AuditResultsRenderer = ({ result, status, onStartAudit, onScrollToClause }
   const items = data.results || [data];
   const summary = data.overall_summary;
   const riskScore = data.risk_score || (items[0]?.risk_score);
+
+  const quotaError = items.find(item => item.explanation?.simplified?.includes("API credits have been exhausted"));
+  if (quotaError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full space-y-4 text-center p-8">
+        <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center">
+          <CreditCard className="w-8 h-8" />
+        </div>
+        <div className="space-y-1">
+          <h4 className="font-bold text-slate-900">Credits Exhausted</h4>
+          <p className="text-xs text-slate-500">Cannot perform analysis. Please check the notification or contact the admin.</p>
+          <p className="text-xs text-primary-600 font-bold mt-2">Admin Contact Details : manishprojects0@gmail.com</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

@@ -83,62 +83,60 @@ REPHRASE_CLAUSE_SYSTEM_PROMPT = """You are **ClauseGuard Negotiation Expert**. Y
     }
 """
 
-CLAUSE_AUDIT_SYSTEM_PROMPT = """You are **ClauseGuard Expert Auditor**, a high-precision legal risk analyzer. Your goal is to identify meaningful legal and financial risks while ignoring standard, harmless clauses.
+CLAUSE_AUDIT_SYSTEM_PROMPT = """You are **ClauseGuard Expert Auditor**, a high-precision AI legal analyst reviewing real risks. You are NOT a generic chatbot.
 
     ## Your Objective
-    Act as a "Risk Filter." If a clause is standard, fair, and reasonable, DO NOT audit it. Only flag clauses that are one-sided, unfair, restrictive, or create dangerous liability for the user. Quality of detection is prioritized over quantity.
+    Act as a strict filter. ONLY flag clauses that are genuinely risky, exploitative, restrictive, financially dangerous, or unusually one-sided. 
+    DO NOT flag harmless clauses, standard legal formatting, or neutral procedural language. 
+    If a clause does not contain a clear, identifiable risk based on the provided law, DO NOT create an audit card (return an empty list in 'results').
 
-    ## Classification Taxonomy (Strict)
-    Map every risk to one of these professional labels:
-    - **Liability**: Limitation of liability, responsibility for damages.
-    - **Indemnification**: Duty to compensate for losses, defense against claims.
-    - **Termination**: Rights to end the contract, unfair notice requirements, exit penalties.
-    - **Notice Period**: Timing requirements for actions or cancellations.
-    - **Non-Compete / Non-Solicit**: Restrictions on future work or hiring.
-    - **Intellectual Property**: Ownership of creations, copyright/patent transfers.
-    - **Payment Terms**: Unfair billing, security deposit withholding, hidden costs.
-    - **Late Penalty**: Unreasonable interest or flat fees for delays.
-    - **Arbitration / Jurisdiction**: Dispute resolution methods and governing law.
-    - **Data Privacy**: Misuse of personal information or PII.
-    - **Auto Renewal**: Automatic extensions without user consent.
-    - **Service Obligations**: Unclear or exaggerated duties for the user.
-
-    ## Response Format (Strict JSON)
+    ## Output Format (Strict JSON)
+    You must return a JSON object with this structure:
     {
         "overall_summary": {
-            "contract_type": "e.g., Residential Lease, SaaS Agreement",
-            "executive_summary": "A 2-3 sentence overview of the document's fairness.",
-            "key_red_flags": ["Bullet point 1", "Bullet point 2"],
-            "financial_concerns": "Summary of costs, deposits, or penalties."
+            "contract_type": "e.g., Residential Lease, Employment Agreement",
+            "executive_summary": "A 2-3 sentence professional overview of the document's fairness. Avoid generic wording.",
+            "key_red_flags": ["Specific red flag 1", "Specific red flag 2"],
+            "financial_concerns": "Specific costs, deposits, or penalties mentioned."
         },
         "results": [
             {
                 "verdict": "NON_COMPLIANT" | "NEEDS_REVIEW",
                 "risk_level": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-                "clause_category": "[From Taxonomy Above]",
+                "clause_category": "[Use one of the categories below]",
                 "clause": "VERBATIM sentence from text.",
-                "short_summary": "Concise professional title (e.g. 'Unfair Liability Cap')",
+                "short_summary": "Precise, contextual title (e.g., 'Excessive Security Deposit', 'Unilateral Termination')",
                 "explanation": {
-                    "legal_technical": "Specific law/section violation (e.g. MTA 2021 Section 11)",
-                    "simplified": "WHAT it does and WHY it is risky. Wrap triggers in **bold**.",
-                    "why_it_risky": "REAL-WORLD CONSEQUENCE (e.g., 'You could lose your entire deposit without proof of damage')."
+                    "legal_technical": "Reference the exact clause meaning and specific law/section violated (e.g., 'Violates Section 11 of MTA 2021 which limits deposits to 2 months').",
+                    "simplified": "Exact Clause Explanation: Explain exactly what obligation, restriction, or liability this clause creates for the user. Avoid phrases like 'vague' or 'unfair'.",
+                    "why_it_risky": "Real-World Consequence: Explain the actual possible outcome, mentioning financial, legal, or practical consequences (e.g., 'You may become financially responsible for project failures even after the agreement ends')."
                 },
-                "suggestion": "A fair, legally-balanced alternative clause."
+                "suggestion": "Generate a rewritten, safer alternative clause or a precise negotiation suggestion. DO NOT say 'Review and rewrite'."
             }
         ]
     }
-    
-    ## Severity Logic
-    - **LOW**: Minor concern or slightly vague wording.
-    - **MEDIUM**: Unfair but common; requires caution.
-    - **HIGH**: Strong financial or legal risk; should be negotiated.
-    - **CRITICAL**: Severe exploitation, dangerous liability, or illegal under MTA 2021.
+
+    ## Categories (Use exactly these or extract specific equivalent)
+    - Liability
+    - Termination
+    - Indemnification
+    - Financial Liability
+    - Long Notice Period
+    - Reimbursement Restrictions
+    - Ownership Rights
+    - Arbitration
+    - Intellectual Property
+    - Non-Compete
+    - Penalty Clause
+    - Confidentiality
+    - Data Privacy
+    - Auto Renewal
 
     ## Rules
-    1. IGNORE harmless, standard, or purely procedural clauses.
-    2. BE SPECIFIC. Avoid generic phrases like "This clause is vague."
-    3. EXPLAIN the "So What?" for the user in 'why_it_risky'.
-    4. Ensure 'clause' is EXACTLY verbatim from the provided text."""
+    1. **No Generic Fallbacks**: Do NOT use phrases like "This clause is vague", "slightly unfair", "clarify it", "review and rewrite", or "mutual fairness".
+    2. **Be Contextual**: Reference the exact obligation or restriction. Understand who gains power and who carries risk.
+    3. **Strict Filtering**: If you cannot confidently identify a specific risk, return an empty array for 'results'.
+"""
 
 DISPUTE_TRIAGE_SYSTEM_PROMPT = """You are **ClauseGuard Dispute Referee**, mediating landlord-tenant disputes using Indian tenancy law (Model Tenancy Act 2021).
 
@@ -197,90 +195,12 @@ def _call_gemini(system_prompt: str, user_message: str) -> dict:
             ),
         )
     except Exception as e:
-        print(f"⚠️ Gemini API Error (Failover Triggered): {e}")
-        # Return realistic mock data based on the system prompt
-        if system_prompt == CLAUSE_AUDIT_SYSTEM_PROMPT:
-            is_deposit = "deposit" in user_message.lower()
-            is_termination = "evict" in user_message.lower() or "vacate" in user_message.lower() or "notice" in user_message.lower()
-            is_rent = "rent" in user_message.lower() and "increase" in user_message.lower()
-            
-            if is_deposit:
-                return {
-                    "verdict": "NON_COMPLIANT",
-                    "risk_level": "HIGH",
-                    "risk_score": 85,
-                    "clause_category": "Rent/Deposit",
-                    "explanation": {
-                        "legal_technical": "Section 11 of the Model Tenancy Act 2021 restricts security deposits to a maximum of two months' rent for residential premises and six months' rent for non-residential premises.",
-                        "simplified": "The landlord is asking for too much security deposit. By law, they can only ask for a maximum of 2 months' rent for a home.",
-                        "why_it_risky": "You are locking up excessive funds that the landlord might wrongfully withhold at the end of the tenancy."
-                    },
-                    "law_reference": "Section 11(1), MTA 2021",
-                    "suggestion": "The tenant shall pay a security deposit equal to two (2) months of rent, fully refundable upon termination."
-                }
-            elif is_rent:
-                return {
-                    "verdict": "NON_COMPLIANT",
-                    "risk_level": "CRITICAL",
-                    "risk_score": 95,
-                    "clause_category": "Rent/Deposit",
-                    "explanation": {
-                        "legal_technical": "Section 9(1) of the Model Tenancy Act 2021 requires that any rent revision must be agreed upon in the tenancy agreement, or the landlord must give three months' written notice.",
-                        "simplified": "The landlord cannot just increase the rent whenever they feel like it. They must follow what's in the agreement or give you 3 months' notice.",
-                        "why_it_risky": "You could be forced to pay arbitrary rent increases without any time to prepare or dispute them."
-                    },
-                    "law_reference": "Section 9(1), MTA 2021",
-                    "suggestion": "Rent may only be revised annually by 5%, or as mutually agreed, with three months' prior written notice."
-                }
-            elif is_termination:
-                return {
-                    "verdict": "NON_COMPLIANT",
-                    "risk_level": "CRITICAL",
-                    "risk_score": 100,
-                    "clause_category": "Termination",
-                    "explanation": {
-                        "legal_technical": "Under Sections 21 and 22 of the Model Tenancy Act 2021, eviction requires an application to the Rent Court. A 24-hour notice is entirely void and unenforceable.",
-                        "simplified": "The landlord cannot kick you out in 24 hours. The law protects you from sudden eviction.",
-                        "why_it_risky": "You could be left homeless overnight if the landlord acts on this illegal clause."
-                    },
-                    "law_reference": "Section 21 & 22, MTA 2021",
-                    "suggestion": "Either party may terminate this agreement by providing a minimum of one (1) month's written notice."
-                }
-            else:
-                return {
-                    "verdict": "NEEDS_REVIEW",
-                    "risk_level": "MEDIUM",
-                    "risk_score": 50,
-                    "clause_category": "Other",
-                    "explanation": {
-                        "legal_technical": "This clause may contravene general principles of fairness under the MTA 2021, though it does not explicitly violate a specific statutory limit.",
-                        "simplified": "This clause is a bit vague or slightly unfair, but not outright illegal. You should clarify it.",
-                        "why_it_risky": "Ambiguous clauses can lead to disputes later on regarding who is responsible for what."
-                    },
-                    "law_reference": "General Provisions, MTA 2021",
-                    "suggestion": "Review and rewrite this clause to ensure mutual fairness and explicit responsibilities."
-                }
-        elif system_prompt == LEGAL_QA_SYSTEM_PROMPT:
-            return {
-                "verdict": "Information temporarily unavailable.",
-                "explanation": "We are currently experiencing high traffic (API Quota Exceeded). Please try again later.",
-                "references": [],
-                "disclaimer": "This is a mock response due to AI service unavailability."
-            }
-        elif system_prompt == DISPUTE_TRIAGE_SYSTEM_PROMPT:
-            return {
-                "summary": "Dispute details cannot be analyzed at this time due to high traffic.",
-                "analysis": "AI service limit reached.",
-                "suggested_resolution": "Please try submitting the dispute later or consult the Rent Authority directly.",
-                "party_obligations": {
-                    "landlord": "N/A",
-                    "tenant": "N/A"
-                },
-                "references": [],
-                "disclaimer": "This is a mock response due to AI service unavailability."
-            }
+        print(f"⚠️ Gemini API Error: {e}")
+        error_msg = str(e).lower()
+        if "quota" in error_msg or "resourceexhausted" in error_msg or "429" in error_msg:
+            raise Exception("AI analysis is temporarily unavailable because the API quota has been exhausted.")
         else:
-            return {"error": "AI service unavailable", "details": str(e)}
+            raise Exception("ClauseGuard has reached its AI analysis limit. Please try again later.")
 
     # Parse JSON response
     raw_text = response.text.strip()
